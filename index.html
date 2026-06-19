@@ -250,6 +250,40 @@ footer{
 .card .row span:last-child{color:var(--sub)}
 .card .closehint{text-align:center; color:var(--faint); font-size:11px; margin-top:18px}
 
+/* ---------- formula autocomplete (Excel-style) ---------- */
+#ac{
+  position:absolute; z-index:20; min-width:248px; max-width:360px;
+  background:var(--bg2); border:1px solid var(--line); border-radius:8px;
+  box-shadow:0 12px 34px rgba(0,0,0,.5); overflow:hidden;
+  font-size:15px; text-align:left; user-select:none;
+}
+.ac-list{ max-height:236px; overflow-y:auto; padding:4px; }
+.ac-list::-webkit-scrollbar{ width:8px }
+.ac-list::-webkit-scrollbar-thumb{ background:var(--line); border-radius:8px }
+.ac-row{
+  display:flex; align-items:center; gap:9px; padding:5px 9px;
+  border-radius:5px; color:var(--sub); white-space:nowrap; cursor:pointer;
+}
+.ac-row:hover{ background:color-mix(in srgb,var(--accent) 8%,transparent) }
+.ac-row.hi{ background:color-mix(in srgb,var(--accent) 18%,transparent) }
+.ac-fx{
+  font-size:11px; font-style:italic; font-weight:700; color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 15%,transparent); border-radius:4px;
+  padding:1px 5px; min-width:24px; text-align:center; letter-spacing:.5px;
+}
+.ac-name{ color:var(--text); letter-spacing:.3px }
+.ac-name .ac-m{ color:var(--accent); font-weight:600 }
+.ac-tip{
+  border-top:1px solid var(--line); padding:9px 11px;
+  background:color-mix(in srgb,var(--bg) 55%,var(--bg2));
+}
+.ac-sig{ font-size:13px; color:var(--text); white-space:normal; overflow-wrap:anywhere; line-height:1.5 }
+.ac-sig b{ color:var(--accent); font-weight:600 }
+.ac-sig .opt{ color:var(--sub) }
+.ac-desc{ font-size:11.5px; color:var(--sub); margin-top:5px; line-height:1.45; white-space:normal }
+.ac-hint{ font-size:10px; color:var(--faint); padding:5px 11px; border-top:1px solid var(--faint); letter-spacing:.5px }
+.ac-hint b{ color:var(--sub) }
+
 .hidden{display:none !important}
 .fade{opacity:.12; pointer-events:none}
 </style>
@@ -259,6 +293,7 @@ footer{
 <header>
   <div class="brand" id="brand">re<span class="accent">calc</span><span class="blk"></span></div>
   <div class="bar-right">
+    <button class="icon" id="acx" title="formula autocomplete (Excel-style)">fx</button>
     <button class="icon" id="snd" title="keypress sound">sound off</button>
     <button class="icon" id="thm" title="theme">excel</button>
     <button class="icon" id="hlp" title="help">?</button>
@@ -282,6 +317,7 @@ footer{
     <div id="sprint">
       <div id="words"><div id="caret" class="blink"></div></div>
       <div id="next"></div>
+      <div id="ac" class="hidden"></div>
     </div>
 
     <!-- NAVIGATE -->
@@ -315,12 +351,13 @@ footer{
     <h3>recalc</h3>
     <div class="lead">Excel reps for analysts. Two disciplines, one tight loop: type real banker formulas at speed, or drive an Excel grid with the keyboard. Open it, get reps, close it.</div>
     <div class="row"><span>Start a run</span><span>just start typing</span></div>
+    <div class="row"><span>Complete a function</span><span>type a few letters · ↑↓ · tab</span></div>
     <div class="row"><span>Restart (same settings)</span><span>tab</span></div>
     <div class="row"><span>Back to menu / abort</span><span>esc</span></div>
     <div class="row"><span>Fix a mistake</span><span>backspace</span></div>
     <div class="row"><span>Navigate grid</span><span>arrows · ctrl+arrows · shift</span></div>
     <div class="row"><span>Anchor a reference</span><span>F4</span></div>
-    <div class="closehint">esc or click anywhere to close</div>
+    <div class="closehint"><b>fx</b> toggles Excel-style autocomplete · esc or click to close</div>
   </div>
 </div>
 
@@ -346,7 +383,7 @@ const cfg = Object.assign({
   category:"all", difficulty:"std",
   mode:"time", time:30, count:15,
   navtask:"mixed", navmode:"count", navtime:60, navcount:12,
-  theme:"excel", sound:false
+  theme:"excel", sound:false, autocomplete:true
 }, store.get("cfg",{}));
 
 const PB = store.get("pb",{});
@@ -471,11 +508,408 @@ function classOf(ch){
 function prettyChar(ch){ return ch===" " ? "␣" : ch; }
 
 /* ============================================================================
+ *  EXCEL FUNCTION LIBRARY  — powers the Excel-style autocomplete dropdown.
+ *  {n:name, s:argument signature, d:one-line description}
+ *  Broad on purpose: typing "=su" should surface the same competing
+ *  functions Excel shows, not just the ones used in drills.
+ * ========================================================================== */
+const XLFUNCS = [
+  // ---- logical ----
+  {n:"IF",s:"logical_test, value_if_true, [value_if_false]",d:"Returns one value if a condition is TRUE and another if FALSE."},
+  {n:"IFS",s:"logical_test1, value1, [logical_test2, value2], …",d:"Checks multiple conditions and returns the first TRUE result."},
+  {n:"IFERROR",s:"value, value_if_error",d:"Returns value_if_error if the expression is an error; otherwise the value."},
+  {n:"IFNA",s:"value, value_if_na",d:"Returns value_if_na only if the expression evaluates to #N/A."},
+  {n:"AND",s:"logical1, [logical2], …",d:"TRUE if every argument is TRUE."},
+  {n:"OR",s:"logical1, [logical2], …",d:"TRUE if any argument is TRUE."},
+  {n:"NOT",s:"logical",d:"Reverses the logic of its argument."},
+  {n:"XOR",s:"logical1, [logical2], …",d:"Returns a logical exclusive OR of the arguments."},
+  {n:"SWITCH",s:"expression, value1, result1, …, [default]",d:"Matches an expression against a list and returns the first hit."},
+  {n:"TRUE",s:"",d:"Returns the logical value TRUE."},
+  {n:"FALSE",s:"",d:"Returns the logical value FALSE."},
+  {n:"LET",s:"name1, value1, …, calculation",d:"Assigns names to results so a formula can reuse them."},
+  {n:"LAMBDA",s:"[parameter, …], calculation",d:"Creates a reusable custom function."},
+  // ---- lookup & reference ----
+  {n:"VLOOKUP",s:"lookup_value, table_array, col_index_num, [range_lookup]",d:"Looks up a value in the first column and returns a value in the same row."},
+  {n:"HLOOKUP",s:"lookup_value, table_array, row_index_num, [range_lookup]",d:"Looks up a value in the top row and returns a value in the same column."},
+  {n:"XLOOKUP",s:"lookup_value, lookup_array, return_array, [if_not_found], [match_mode], [search_mode]",d:"Searches a range and returns the corresponding item from a second range."},
+  {n:"LOOKUP",s:"lookup_value, lookup_vector, [result_vector]",d:"Looks up a value from a one-row/column range or array."},
+  {n:"INDEX",s:"array, row_num, [column_num]",d:"Returns a value at a given position in a range or array."},
+  {n:"MATCH",s:"lookup_value, lookup_array, [match_type]",d:"Returns the relative position of an item in a range."},
+  {n:"XMATCH",s:"lookup_value, lookup_array, [match_mode], [search_mode]",d:"Returns the relative position of an item, with modern match options."},
+  {n:"CHOOSE",s:"index_num, value1, [value2], …",d:"Selects a value from a list based on an index number."},
+  {n:"OFFSET",s:"reference, rows, cols, [height], [width]",d:"Returns a reference offset from a starting cell."},
+  {n:"INDIRECT",s:"ref_text, [a1]",d:"Returns the reference specified by a text string."},
+  {n:"ROW",s:"[reference]",d:"Returns the row number of a reference."},
+  {n:"ROWS",s:"array",d:"Returns the number of rows in a reference or array."},
+  {n:"COLUMN",s:"[reference]",d:"Returns the column number of a reference."},
+  {n:"COLUMNS",s:"array",d:"Returns the number of columns in a reference or array."},
+  {n:"AREAS",s:"reference",d:"Returns the number of areas in a reference."},
+  {n:"TRANSPOSE",s:"array",d:"Flips the orientation of a range — rows become columns."},
+  {n:"GETPIVOTDATA",s:"data_field, pivot_table, [field, item], …",d:"Returns data stored in a PivotTable."},
+  {n:"HYPERLINK",s:"link_location, [friendly_name]",d:"Creates a clickable link to a document or URL."},
+  {n:"FORMULATEXT",s:"reference",d:"Returns the formula in a cell as text."},
+  {n:"ADDRESS",s:"row_num, column_num, [abs_num], [a1], [sheet_text]",d:"Builds a cell address as text from row and column numbers."},
+  {n:"FILTER",s:"array, include, [if_empty]",d:"Filters a range based on a condition (spills the result)."},
+  {n:"SORT",s:"array, [sort_index], [sort_order], [by_col]",d:"Sorts a range or array."},
+  {n:"SORTBY",s:"array, by_array1, [sort_order1], …",d:"Sorts a range by values in another range."},
+  {n:"UNIQUE",s:"array, [by_col], [exactly_once]",d:"Returns the distinct values from a range."},
+  {n:"SEQUENCE",s:"rows, [columns], [start], [step]",d:"Generates a spilled array of sequential numbers."},
+  {n:"RANDARRAY",s:"[rows], [columns], [min], [max], [whole_number]",d:"Returns an array of random numbers."},
+  {n:"VSTACK",s:"array1, [array2], …",d:"Stacks arrays vertically into one array."},
+  {n:"HSTACK",s:"array1, [array2], …",d:"Stacks arrays horizontally into one array."},
+  {n:"TOROW",s:"array, [ignore], [scan_by_column]",d:"Returns the array as a single row."},
+  {n:"TOCOL",s:"array, [ignore], [scan_by_column]",d:"Returns the array as a single column."},
+  {n:"WRAPROWS",s:"vector, wrap_count, [pad_with]",d:"Wraps a vector into rows of a given length."},
+  {n:"WRAPCOLS",s:"vector, wrap_count, [pad_with]",d:"Wraps a vector into columns of a given length."},
+  {n:"TAKE",s:"array, rows, [columns]",d:"Returns rows/columns from the start or end of an array."},
+  {n:"DROP",s:"array, rows, [columns]",d:"Removes rows/columns from the start or end of an array."},
+  {n:"CHOOSEROWS",s:"array, row_num1, [row_num2], …",d:"Returns the specified rows from an array."},
+  {n:"CHOOSECOLS",s:"array, col_num1, [col_num2], …",d:"Returns the specified columns from an array."},
+  {n:"EXPAND",s:"array, rows, [columns], [pad_with]",d:"Expands an array to a given size, padding the rest."},
+  {n:"GROUPBY",s:"row_fields, values, function, …",d:"Groups, aggregates and sorts data into a report."},
+  {n:"PIVOTBY",s:"row_fields, col_fields, values, function, …",d:"Builds a two-way summary across rows and columns."},
+  // ---- math & trig ----
+  {n:"SUM",s:"number1, [number2], …",d:"Adds all the numbers in the arguments."},
+  {n:"SUMIF",s:"range, criteria, [sum_range]",d:"Adds the cells that meet one condition."},
+  {n:"SUMIFS",s:"sum_range, criteria_range1, criteria1, …",d:"Adds the cells that meet multiple conditions."},
+  {n:"SUMPRODUCT",s:"array1, [array2], …",d:"Multiplies arrays element-by-element and sums the result."},
+  {n:"SUMSQ",s:"number1, [number2], …",d:"Returns the sum of the squares of the arguments."},
+  {n:"SUMX2MY2",s:"array_x, array_y",d:"Sum of the difference of squares of two arrays."},
+  {n:"SUMX2PY2",s:"array_x, array_y",d:"Sum of the sum of squares of two arrays."},
+  {n:"SUMXMY2",s:"array_x, array_y",d:"Sum of squares of differences of two arrays."},
+  {n:"PRODUCT",s:"number1, [number2], …",d:"Multiplies all the arguments."},
+  {n:"POWER",s:"number, power",d:"Returns a number raised to a power."},
+  {n:"SQRT",s:"number",d:"Returns the positive square root."},
+  {n:"SQRTPI",s:"number",d:"Returns the square root of (number × π)."},
+  {n:"ABS",s:"number",d:"Returns the absolute value of a number."},
+  {n:"SIGN",s:"number",d:"Returns the sign of a number (1, 0 or -1)."},
+  {n:"MOD",s:"number, divisor",d:"Returns the remainder after division."},
+  {n:"QUOTIENT",s:"numerator, denominator",d:"Returns the integer portion of a division."},
+  {n:"INT",s:"number",d:"Rounds a number down to the nearest integer."},
+  {n:"TRUNC",s:"number, [num_digits]",d:"Truncates a number to an integer or given digits."},
+  {n:"ROUND",s:"number, num_digits",d:"Rounds a number to a specified number of digits."},
+  {n:"ROUNDUP",s:"number, num_digits",d:"Rounds a number up, away from zero."},
+  {n:"ROUNDDOWN",s:"number, num_digits",d:"Rounds a number down, toward zero."},
+  {n:"MROUND",s:"number, multiple",d:"Rounds to the nearest multiple."},
+  {n:"CEILING",s:"number, significance",d:"Rounds up to the nearest multiple of significance."},
+  {n:"CEILING.MATH",s:"number, [significance], [mode]",d:"Rounds up to the nearest multiple or integer."},
+  {n:"FLOOR",s:"number, significance",d:"Rounds down to the nearest multiple of significance."},
+  {n:"FLOOR.MATH",s:"number, [significance], [mode]",d:"Rounds down to the nearest multiple or integer."},
+  {n:"EVEN",s:"number",d:"Rounds up to the nearest even integer."},
+  {n:"ODD",s:"number",d:"Rounds up to the nearest odd integer."},
+  {n:"GCD",s:"number1, [number2], …",d:"Returns the greatest common divisor."},
+  {n:"LCM",s:"number1, [number2], …",d:"Returns the least common multiple."},
+  {n:"EXP",s:"number",d:"Returns e raised to a power."},
+  {n:"LN",s:"number",d:"Returns the natural logarithm of a number."},
+  {n:"LOG",s:"number, [base]",d:"Returns the logarithm to a given base."},
+  {n:"LOG10",s:"number",d:"Returns the base-10 logarithm."},
+  {n:"FACT",s:"number",d:"Returns the factorial of a number."},
+  {n:"COMBIN",s:"number, number_chosen",d:"Returns the number of combinations."},
+  {n:"PERMUT",s:"number, number_chosen",d:"Returns the number of permutations."},
+  {n:"PI",s:"",d:"Returns the value of π."},
+  {n:"RAND",s:"",d:"Returns a random number between 0 and 1."},
+  {n:"RANDBETWEEN",s:"bottom, top",d:"Returns a random integer between two values."},
+  {n:"ROMAN",s:"number, [form]",d:"Converts an Arabic numeral to Roman, as text."},
+  {n:"ARABIC",s:"text",d:"Converts a Roman numeral to an Arabic number."},
+  {n:"BASE",s:"number, radix, [min_length]",d:"Converts a number into a text representation in a given base."},
+  {n:"DECIMAL",s:"text, radix",d:"Converts a text representation in a base to a number."},
+  {n:"SUBTOTAL",s:"function_num, ref1, …",d:"Returns a subtotal, optionally ignoring hidden rows."},
+  {n:"AGGREGATE",s:"function_num, options, ref1, …",d:"Returns an aggregate, with control over errors and hidden rows."},
+  {n:"SIN",s:"number",d:"Returns the sine of an angle (radians)."},
+  {n:"COS",s:"number",d:"Returns the cosine of an angle (radians)."},
+  {n:"TAN",s:"number",d:"Returns the tangent of an angle (radians)."},
+  {n:"ATAN2",s:"x_num, y_num",d:"Returns the arctangent from x and y coordinates."},
+  {n:"DEGREES",s:"angle",d:"Converts radians to degrees."},
+  {n:"RADIANS",s:"angle",d:"Converts degrees to radians."},
+  // ---- statistical ----
+  {n:"AVERAGE",s:"number1, [number2], …",d:"Returns the arithmetic mean of its arguments."},
+  {n:"AVERAGEA",s:"value1, [value2], …",d:"Averages its arguments, including text and logicals."},
+  {n:"AVERAGEIF",s:"range, criteria, [average_range]",d:"Averages the cells that meet one condition."},
+  {n:"AVERAGEIFS",s:"average_range, criteria_range1, criteria1, …",d:"Averages the cells that meet multiple conditions."},
+  {n:"COUNT",s:"value1, [value2], …",d:"Counts how many cells contain numbers."},
+  {n:"COUNTA",s:"value1, [value2], …",d:"Counts how many cells are not empty."},
+  {n:"COUNTBLANK",s:"range",d:"Counts the empty cells in a range."},
+  {n:"COUNTIF",s:"range, criteria",d:"Counts the cells that meet one condition."},
+  {n:"COUNTIFS",s:"criteria_range1, criteria1, …",d:"Counts the cells that meet multiple conditions."},
+  {n:"MAX",s:"number1, [number2], …",d:"Returns the largest value."},
+  {n:"MAXA",s:"value1, [value2], …",d:"Returns the largest value, including text and logicals."},
+  {n:"MAXIFS",s:"max_range, criteria_range1, criteria1, …",d:"Returns the maximum among cells meeting conditions."},
+  {n:"MIN",s:"number1, [number2], …",d:"Returns the smallest value."},
+  {n:"MINA",s:"value1, [value2], …",d:"Returns the smallest value, including text and logicals."},
+  {n:"MINIFS",s:"min_range, criteria_range1, criteria1, …",d:"Returns the minimum among cells meeting conditions."},
+  {n:"MEDIAN",s:"number1, [number2], …",d:"Returns the median (middle value)."},
+  {n:"MODE.SNGL",s:"number1, [number2], …",d:"Returns the most frequently occurring value."},
+  {n:"LARGE",s:"array, k",d:"Returns the k-th largest value in a data set."},
+  {n:"SMALL",s:"array, k",d:"Returns the k-th smallest value in a data set."},
+  {n:"RANK",s:"number, ref, [order]",d:"Returns the rank of a number in a list."},
+  {n:"RANK.EQ",s:"number, ref, [order]",d:"Returns the rank of a number (ties share the top rank)."},
+  {n:"PERCENTILE.INC",s:"array, k",d:"Returns the k-th percentile (inclusive)."},
+  {n:"QUARTILE.INC",s:"array, quart",d:"Returns the quartile of a data set."},
+  {n:"PERCENTRANK.INC",s:"array, x, [significance]",d:"Returns the percentage rank of a value."},
+  {n:"STDEV.S",s:"number1, [number2], …",d:"Estimates standard deviation from a sample."},
+  {n:"STDEV.P",s:"number1, [number2], …",d:"Calculates standard deviation of a whole population."},
+  {n:"VAR.S",s:"number1, [number2], …",d:"Estimates variance from a sample."},
+  {n:"VAR.P",s:"number1, [number2], …",d:"Calculates variance of a whole population."},
+  {n:"CORREL",s:"array1, array2",d:"Returns the correlation coefficient of two data sets."},
+  {n:"COVARIANCE.S",s:"array1, array2",d:"Returns sample covariance of two data sets."},
+  {n:"SLOPE",s:"known_ys, known_xs",d:"Returns the slope of a linear regression line."},
+  {n:"INTERCEPT",s:"known_ys, known_xs",d:"Returns the intercept of a linear regression line."},
+  {n:"FORECAST.LINEAR",s:"x, known_ys, known_xs",d:"Predicts a value along a linear trend."},
+  {n:"TREND",s:"known_ys, [known_xs], [new_xs], [const]",d:"Returns values along a linear trend line."},
+  {n:"LINEST",s:"known_ys, [known_xs], [const], [stats]",d:"Returns the parameters of a linear trend."},
+  {n:"GEOMEAN",s:"number1, [number2], …",d:"Returns the geometric mean."},
+  {n:"NORM.DIST",s:"x, mean, standard_dev, cumulative",d:"Returns the normal distribution."},
+  {n:"NORM.INV",s:"probability, mean, standard_dev",d:"Returns the inverse of the normal distribution."},
+  {n:"NORM.S.DIST",s:"z, cumulative",d:"Returns the standard normal distribution."},
+  {n:"PERCENTILE",s:"array, k",d:"Returns the k-th percentile (legacy)."},
+  {n:"QUARTILE",s:"array, quart",d:"Returns the quartile of a data set (legacy)."},
+  {n:"FREQUENCY",s:"data_array, bins_array",d:"Counts how often values fall within bins."},
+  {n:"SKEW",s:"number1, [number2], …",d:"Returns the skewness of a distribution."},
+  {n:"KURT",s:"number1, [number2], …",d:"Returns the kurtosis of a data set."},
+  // ---- financial ----
+  {n:"PV",s:"rate, nper, pmt, [fv], [type]",d:"Returns the present value of an investment."},
+  {n:"FV",s:"rate, nper, pmt, [pv], [type]",d:"Returns the future value of an investment."},
+  {n:"NPV",s:"rate, value1, [value2], …",d:"Net present value of periodic cash flows."},
+  {n:"XNPV",s:"rate, values, dates",d:"Net present value of cash flows on specific dates."},
+  {n:"IRR",s:"values, [guess]",d:"Internal rate of return for periodic cash flows."},
+  {n:"XIRR",s:"values, dates, [guess]",d:"Internal rate of return for dated cash flows."},
+  {n:"MIRR",s:"values, finance_rate, reinvest_rate",d:"Modified internal rate of return."},
+  {n:"PMT",s:"rate, nper, pv, [fv], [type]",d:"Returns the periodic payment for a loan."},
+  {n:"IPMT",s:"rate, per, nper, pv, [fv], [type]",d:"Interest portion of a payment for a period."},
+  {n:"PPMT",s:"rate, per, nper, pv, [fv], [type]",d:"Principal portion of a payment for a period."},
+  {n:"RATE",s:"nper, pmt, pv, [fv], [type], [guess]",d:"Returns the interest rate per period."},
+  {n:"NPER",s:"rate, pmt, pv, [fv], [type]",d:"Returns the number of periods for an investment."},
+  {n:"PRICE",s:"settlement, maturity, rate, yld, redemption, frequency, [basis]",d:"Price per $100 face value of a coupon security."},
+  {n:"YIELD",s:"settlement, maturity, rate, pr, redemption, frequency, [basis]",d:"Yield of a security that pays periodic interest."},
+  {n:"DURATION",s:"settlement, maturity, coupon, yld, frequency, [basis]",d:"Macaulay duration of a security."},
+  {n:"MDURATION",s:"settlement, maturity, coupon, yld, frequency, [basis]",d:"Modified duration of a security."},
+  {n:"CUMIPMT",s:"rate, nper, pv, start_period, end_period, type",d:"Cumulative interest paid between two periods."},
+  {n:"CUMPRINC",s:"rate, nper, pv, start_period, end_period, type",d:"Cumulative principal paid between two periods."},
+  {n:"SLN",s:"cost, salvage, life",d:"Straight-line depreciation for one period."},
+  {n:"DB",s:"cost, salvage, life, period, [month]",d:"Declining-balance depreciation."},
+  {n:"DDB",s:"cost, salvage, life, period, [factor]",d:"Double-declining-balance depreciation."},
+  {n:"SYD",s:"cost, salvage, life, per",d:"Sum-of-years'-digits depreciation."},
+  {n:"VDB",s:"cost, salvage, life, start_period, end_period, [factor], [no_switch]",d:"Variable declining-balance depreciation."},
+  {n:"EFFECT",s:"nominal_rate, npery",d:"Effective annual interest rate."},
+  {n:"NOMINAL",s:"effect_rate, npery",d:"Nominal annual interest rate."},
+  {n:"FVSCHEDULE",s:"principal, schedule",d:"Future value with a series of compound rates."},
+  {n:"RRI",s:"nper, pv, fv",d:"Equivalent interest rate for the growth of an investment."},
+  {n:"PDURATION",s:"rate, pv, fv",d:"Periods required for an investment to reach a value."},
+  // ---- text ----
+  {n:"CONCAT",s:"text1, [text2], …",d:"Joins text from ranges or strings."},
+  {n:"CONCATENATE",s:"text1, [text2], …",d:"Joins several text strings into one (legacy)."},
+  {n:"TEXTJOIN",s:"delimiter, ignore_empty, text1, …",d:"Joins text with a delimiter between each item."},
+  {n:"LEFT",s:"text, [num_chars]",d:"Returns characters from the start of a string."},
+  {n:"RIGHT",s:"text, [num_chars]",d:"Returns characters from the end of a string."},
+  {n:"MID",s:"text, start_num, num_chars",d:"Returns characters from the middle of a string."},
+  {n:"LEN",s:"text",d:"Returns the number of characters in a string."},
+  {n:"FIND",s:"find_text, within_text, [start_num]",d:"Locates one string within another (case-sensitive)."},
+  {n:"SEARCH",s:"find_text, within_text, [start_num]",d:"Locates one string within another (not case-sensitive)."},
+  {n:"REPLACE",s:"old_text, start_num, num_chars, new_text",d:"Replaces characters by position."},
+  {n:"SUBSTITUTE",s:"text, old_text, new_text, [instance_num]",d:"Replaces existing text with new text."},
+  {n:"TRIM",s:"text",d:"Removes extra spaces from text."},
+  {n:"CLEAN",s:"text",d:"Removes non-printable characters from text."},
+  {n:"UPPER",s:"text",d:"Converts text to uppercase."},
+  {n:"LOWER",s:"text",d:"Converts text to lowercase."},
+  {n:"PROPER",s:"text",d:"Capitalizes the first letter of each word."},
+  {n:"TEXT",s:"value, format_text",d:"Formats a number as text using a format code."},
+  {n:"VALUE",s:"text",d:"Converts a text string to a number."},
+  {n:"NUMBERVALUE",s:"text, [decimal_separator], [group_separator]",d:"Converts text to a number, locale-independent."},
+  {n:"FIXED",s:"number, [decimals], [no_commas]",d:"Formats a number as text with fixed decimals."},
+  {n:"DOLLAR",s:"number, [decimals]",d:"Formats a number as currency text."},
+  {n:"REPT",s:"text, number_times",d:"Repeats text a given number of times."},
+  {n:"CHAR",s:"number",d:"Returns the character for a code number."},
+  {n:"CODE",s:"text",d:"Returns the numeric code of the first character."},
+  {n:"EXACT",s:"text1, text2",d:"Tests whether two strings are identical (case-sensitive)."},
+  {n:"TEXTBEFORE",s:"text, delimiter, [instance_num], …",d:"Returns the text before a delimiter."},
+  {n:"TEXTAFTER",s:"text, delimiter, [instance_num], …",d:"Returns the text after a delimiter."},
+  {n:"TEXTSPLIT",s:"text, col_delimiter, [row_delimiter], …",d:"Splits text into an array using delimiters."},
+  {n:"VALUETOTEXT",s:"value, [format]",d:"Returns text representing any value."},
+  {n:"ARRAYTOTEXT",s:"array, [format]",d:"Returns text representing an array."},
+  {n:"REGEXTEST",s:"text, pattern, [case_sensitivity]",d:"Tests whether text matches a regular expression."},
+  {n:"REGEXEXTRACT",s:"text, pattern, [return_mode], …",d:"Extracts text matching a regular expression."},
+  {n:"REGEXREPLACE",s:"text, pattern, replacement, …",d:"Replaces text matching a regular expression."},
+  // ---- date & time ----
+  {n:"TODAY",s:"",d:"Returns today's date."},
+  {n:"NOW",s:"",d:"Returns the current date and time."},
+  {n:"DATE",s:"year, month, day",d:"Builds a date from year, month and day."},
+  {n:"TIME",s:"hour, minute, second",d:"Builds a time from hours, minutes and seconds."},
+  {n:"DATEVALUE",s:"date_text",d:"Converts a date in text form to a serial number."},
+  {n:"YEAR",s:"serial_number",d:"Returns the year of a date."},
+  {n:"MONTH",s:"serial_number",d:"Returns the month of a date."},
+  {n:"DAY",s:"serial_number",d:"Returns the day of the month."},
+  {n:"HOUR",s:"serial_number",d:"Returns the hour of a time."},
+  {n:"MINUTE",s:"serial_number",d:"Returns the minute of a time."},
+  {n:"SECOND",s:"serial_number",d:"Returns the second of a time."},
+  {n:"WEEKDAY",s:"serial_number, [return_type]",d:"Returns the day of the week as a number."},
+  {n:"WEEKNUM",s:"serial_number, [return_type]",d:"Returns the week number of the year."},
+  {n:"ISOWEEKNUM",s:"date",d:"Returns the ISO week number of the year."},
+  {n:"EOMONTH",s:"start_date, months",d:"Returns the last day of a month, offset by months."},
+  {n:"EDATE",s:"start_date, months",d:"Returns a date a number of months away."},
+  {n:"WORKDAY",s:"start_date, days, [holidays]",d:"Returns a date a number of workdays away."},
+  {n:"WORKDAY.INTL",s:"start_date, days, [weekend], [holidays]",d:"Workday offset with custom weekend days."},
+  {n:"NETWORKDAYS",s:"start_date, end_date, [holidays]",d:"Counts whole workdays between two dates."},
+  {n:"NETWORKDAYS.INTL",s:"start_date, end_date, [weekend], [holidays]",d:"Counts workdays with custom weekend days."},
+  {n:"DATEDIF",s:"start_date, end_date, unit",d:"Returns the difference between dates in a chosen unit."},
+  {n:"DAYS",s:"end_date, start_date",d:"Returns the number of days between two dates."},
+  {n:"DAYS360",s:"start_date, end_date, [method]",d:"Days between dates on a 360-day year."},
+  {n:"YEARFRAC",s:"start_date, end_date, [basis]",d:"Fraction of a year between two dates."},
+  // ---- information ----
+  {n:"ISBLANK",s:"value",d:"TRUE if the value refers to an empty cell."},
+  {n:"ISERROR",s:"value",d:"TRUE if the value is any error."},
+  {n:"ISERR",s:"value",d:"TRUE if the value is any error except #N/A."},
+  {n:"ISNA",s:"value",d:"TRUE if the value is the #N/A error."},
+  {n:"ISNUMBER",s:"value",d:"TRUE if the value is a number."},
+  {n:"ISTEXT",s:"value",d:"TRUE if the value is text."},
+  {n:"ISNONTEXT",s:"value",d:"TRUE if the value is not text."},
+  {n:"ISLOGICAL",s:"value",d:"TRUE if the value is a logical (TRUE/FALSE)."},
+  {n:"ISREF",s:"value",d:"TRUE if the value is a reference."},
+  {n:"ISFORMULA",s:"reference",d:"TRUE if a cell contains a formula."},
+  {n:"ISEVEN",s:"number",d:"TRUE if the number is even."},
+  {n:"ISODD",s:"number",d:"TRUE if the number is odd."},
+  {n:"ISOMITTED",s:"argument",d:"TRUE if a LAMBDA argument was not supplied."},
+  {n:"N",s:"value",d:"Converts a value to a number."},
+  {n:"NA",s:"",d:"Returns the #N/A error value."},
+  {n:"TYPE",s:"value",d:"Returns a number indicating the data type of a value."},
+  {n:"ERROR.TYPE",s:"error_val",d:"Returns a number matching an error type."},
+  {n:"CELL",s:"info_type, [reference]",d:"Returns information about a cell's formatting or contents."},
+  {n:"INFO",s:"type_text",d:"Returns information about the operating environment."},
+  {n:"SHEET",s:"[value]",d:"Returns the sheet number of a reference."},
+  {n:"SHEETS",s:"[reference]",d:"Returns the number of sheets in a reference."},
+  // ---- database ----
+  {n:"DSUM",s:"database, field, criteria",d:"Sums records that match criteria."},
+  {n:"DAVERAGE",s:"database, field, criteria",d:"Averages records that match criteria."},
+  {n:"DCOUNT",s:"database, field, criteria",d:"Counts numeric records that match criteria."},
+  {n:"DGET",s:"database, field, criteria",d:"Extracts the single record matching criteria."},
+  {n:"DMAX",s:"database, field, criteria",d:"Maximum of records that match criteria."},
+  {n:"DMIN",s:"database, field, criteria",d:"Minimum of records that match criteria."},
+  // ---- lambda helpers ----
+  {n:"MAP",s:"array1, [array2], …, lambda",d:"Maps each value in arrays through a LAMBDA."},
+  {n:"REDUCE",s:"initial_value, array, lambda",d:"Reduces an array to a value via a LAMBDA accumulator."},
+  {n:"SCAN",s:"initial_value, array, lambda",d:"Scans an array, returning intermediate values."},
+  {n:"BYROW",s:"array, lambda",d:"Applies a LAMBDA to each row, returning a column."},
+  {n:"BYCOL",s:"array, lambda",d:"Applies a LAMBDA to each column, returning a row."},
+  {n:"MAKEARRAY",s:"rows, columns, lambda",d:"Builds an array by calling a LAMBDA for each cell."},
+  // ---- engineering ----
+  {n:"CONVERT",s:"number, from_unit, to_unit",d:"Converts a number from one unit to another."},
+  {n:"DELTA",s:"number1, [number2]",d:"Tests whether two numbers are equal (1 or 0)."},
+  {n:"GESTEP",s:"number, [step]",d:"Tests whether a number is ≥ a threshold."},
+  {n:"BITAND",s:"number1, number2",d:"Returns a bitwise AND of two numbers."},
+  {n:"BITOR",s:"number1, number2",d:"Returns a bitwise OR of two numbers."},
+  {n:"BITXOR",s:"number1, number2",d:"Returns a bitwise XOR of two numbers."},
+  // ---- web ----
+  {n:"WEBSERVICE",s:"url",d:"Returns data from a web service."},
+  {n:"ENCODEURL",s:"text",d:"Returns a URL-encoded string."},
+  {n:"FILTERXML",s:"xml, xpath",d:"Returns data from XML using an XPath query."}
+].sort((a,b)=> a.n < b.n ? -1 : 1);
+
+/* ============================================================================
  *  SPRINT ENGINE
  * ========================================================================== */
 const wordsEl = $("#words");
 const caretEl = $("#caret");
 const nextEl  = $("#next");
+const acEl    = $("#ac");
+
+/* ----- Excel-style formula autocomplete ----- */
+let ac = { open:false, matches:[], hi:0, tokenStart:0, prefix:"" };
+const AC_BOUNDARY = "=(),+-*/^<>&%{;: ";   // chars after which a function name may begin
+
+function acInString(upto){            // true if caret sits inside a "…" or '…' literal
+  let dq=0, sq=0;
+  for(let i=0;i<upto;i++){ const c=run.target[i]; if(c==='"') dq^=1; else if(c==="'") sq^=1; }
+  return dq===1 || sq===1;
+}
+function acToken(){                    // the identifier ending at the caret, if it can start a function
+  const i = run.index;
+  let j = i;
+  while(j>0 && /[A-Za-z0-9.]/.test(run.target[j-1])) j--;
+  if(j===i) return null;
+  const prefix = run.target.slice(j, i);
+  if(!/^[A-Za-z]/.test(prefix)) return null;
+  const before = j>0 ? run.target[j-1] : undefined;
+  if(before!==undefined && !AC_BOUNDARY.includes(before)) return null;
+  if(acInString(j)) return null;
+  return { start:j, prefix };
+}
+function updateAC(){
+  if(!cfg.autocomplete || STATE.phase!=="run" || cfg.discipline!=="sprint"){ closeAC(); return; }
+  const tok = acToken();
+  if(!tok){ closeAC(); return; }
+  const up = tok.prefix.toUpperCase();
+  const matches = XLFUNCS.filter(f => f.n.startsWith(up));
+  if(!matches.length){ closeAC(); return; }
+  if(!ac.open || tok.start!==ac.tokenStart || tok.prefix!==ac.prefix) ac.hi = 0;  // re-filter → highlight first
+  ac.open=true; ac.matches=matches; ac.tokenStart=tok.start; ac.prefix=tok.prefix;
+  ac.hi = clamp(ac.hi, 0, matches.length-1);
+  renderAC();
+}
+function closeAC(){
+  if(ac.open || !acEl.classList.contains("hidden")){
+    ac.open=false; acEl.classList.add("hidden"); acEl.innerHTML="";
+  }
+}
+function acHighlight(name, k){
+  return `<b class="ac-m">${name.slice(0,k)}</b>${name.slice(k)}`;
+}
+function renderAC(){
+  const m = ac.matches, hi = ac.hi, k = ac.prefix.length;
+  let rows = "";
+  for(let i=0;i<m.length;i++){
+    rows += `<div class="ac-row${i===hi?' hi':''}" data-i="${i}">`+
+            `<span class="ac-fx">fx</span><span class="ac-name">${acHighlight(m[i].n,k)}</span></div>`;
+  }
+  const cur = m[hi];
+  const tip = cur ? `<div class="ac-tip"><div class="ac-sig"><b>${cur.n}</b>(${escapeHtml(cur.s||"")})</div>`+
+    `${cur.d?`<div class="ac-desc">${escapeHtml(cur.d)}</div>`:""}</div>` : "";
+  acEl.innerHTML = `<div class="ac-list">${rows}</div>${tip}`+
+                   `<div class="ac-hint"><b>↑↓</b> select · <b>⇥</b> insert · <b>esc</b> close</div>`;
+  acEl.classList.remove("hidden");
+  // position just under the caret, kept inside the arena
+  const top = wordsEl.offsetTop + caretEl.offsetTop + caretEl.offsetHeight + 6;
+  acEl.style.top = top + "px";
+  let left = wordsEl.offsetLeft + caretEl.offsetLeft;
+  const maxL = wordsEl.offsetWidth - acEl.offsetWidth;
+  if(left > maxL) left = Math.max(0, maxL);
+  if(left < 0) left = 0;
+  acEl.style.left = left + "px";
+  const hiEl = acEl.querySelector(".ac-row.hi");
+  if(hiEl) hiEl.scrollIntoView({block:"nearest"});
+  acEl.querySelectorAll(".ac-row").forEach(el=>{
+    el.onmousedown = e=>{ e.preventDefault(); ac.hi = +el.dataset.i; completeFunction(); };
+  });
+}
+function completeFunction(){
+  const f = ac.matches[ac.hi]; if(!f) return;
+  const comp = f.n + "(";
+  const seg  = run.target.slice(ac.tokenStart, ac.tokenStart + comp.length);
+  if(seg.toUpperCase() === comp){                  // right function for this drill → fill it in
+    const newIndex = ac.tokenStart + comp.length;
+    for(let p=run.index; p<newIndex; p++){ const s=run.spans[p]; if(s){ s.classList.remove("err"); s.classList.add("done"); } }
+    if(newIndex > run.maxIndex){
+      const now = performance.now()-run.startTime;
+      for(let p=run.maxIndex; p<newIndex; p++) run.keyTimes.push(now);
+      run.correct += newIndex - run.maxIndex;
+      run.maxIndex = newIndex;
+    }
+    run.index = newIndex;
+    beep(true);
+    closeAC();
+    if(run.index === run.target.length) completeFormula();
+    else { updateCaret(); updateAC(); }
+  } else {                                          // wrong pick → gentle miss, keep the list open
+    const expected = run.target[run.index];
+    if(expected !== undefined){
+      run.errors++;
+      run.errByChar[expected] = (run.errByChar[expected]||0)+1;
+      run.errByClass[classOf(expected)] = (run.errByClass[classOf(expected)]||0)+1;
+      run.errorTimes.push(performance.now()-run.startTime);
+      const s = run.spans[run.index];
+      if(s){ s.classList.add("err"); setTimeout(()=>{ if(s.classList.contains("err") && !s.classList.contains("done")) s.classList.remove("err"); }, 240); }
+    }
+    beep(false);
+  }
+}
 
 let run = null;
 function newRun(){
@@ -519,6 +953,7 @@ function loadCurrent(){
   wordsEl.appendChild(frag);
   nextEl.innerHTML = `<span class="tag">${run.next.cat}</span>${escapeHtml(run.next.text)}`;
   updateCaret();
+  closeAC();
 }
 function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
@@ -540,11 +975,16 @@ function updateCaret(){
 }
 
 function sprintKey(e){
-  if(e.key==="Escape"){ e.preventDefault(); toMenu(); return; }
+  if(e.key==="Escape"){ e.preventDefault(); if(ac.open) closeAC(); else toMenu(); return; }
+  if(ac.open){                                   // dropdown is captive of these keys, just like Excel
+    if(e.key==="ArrowDown"){ e.preventDefault(); ac.hi=Math.min(ac.matches.length-1, ac.hi+1); renderAC(); return; }
+    if(e.key==="ArrowUp"){   e.preventDefault(); ac.hi=Math.max(0, ac.hi-1); renderAC(); return; }
+    if(e.key==="Tab"){       e.preventDefault(); completeFunction(); return; }
+  }
   if(e.key==="Tab"){ e.preventDefault(); startSprint(); return; }
   if(e.key==="Backspace"){
     e.preventDefault();
-    if(run.index>0){ run.index--; run.spans[run.index].classList.remove("done"); updateCaret(); }
+    if(run.index>0){ run.index--; run.spans[run.index].classList.remove("done"); updateCaret(); updateAC(); }
     return;
   }
   if(e.key.length!==1 || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -566,7 +1006,7 @@ function typeChar(ch){
     }
     beep(true);
     if(run.index === run.target.length) completeFormula();
-    else updateCaret();
+    else { updateCaret(); updateAC(); }
   } else {
     run.errors++;
     run.errByChar[expected] = (run.errByChar[expected]||0)+1;
@@ -612,6 +1052,7 @@ function startTicker(){
 
 function finishSprint(){
   clearInterval(run.tick);
+  closeAC();
   const end = performance.now();
   const elapsed = (end - run.startTime)/1000;
   const wpm = elapsed>0 ? (run.correct/5)/(elapsed/60) : 0;
@@ -888,7 +1329,7 @@ function finishNav(){
  * ========================================================================== */
 function pbKey(r){
   return r.kind==="sprint"
-    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}`
+    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}|${cfg.autocomplete?"ac":"raw"}`
     : `nav|${cfg.navmode}|${cfg.navmode==="time"?cfg.navtime:cfg.navcount}|${cfg.navtask}`;
 }
 function finalize(r){
@@ -1046,6 +1487,7 @@ function restart(){
 function toMenu(){
   if(run&&run.tick) clearInterval(run.tick);
   if(nav&&nav.tick) clearInterval(nav.tick);
+  closeAC();
   STATE.phase="menu";
   $("#results").classList.add("hidden");
   $("#live").classList.remove("show");
@@ -1181,6 +1623,7 @@ function applyTheme(){ document.body.dataset.theme=cfg.theme; $("#thm").textCont
 $("#thm").onclick=()=>{ cfg.theme=THEMES[(THEMES.indexOf(cfg.theme)+1)%THEMES.length]; store.set("cfg",cfg); applyTheme();
   if(STATE.phase==="menu") showDiscipline(); };
 $("#snd").onclick=()=>{ cfg.sound=!cfg.sound; store.set("cfg",cfg); $("#snd").textContent="sound "+(cfg.sound?"on":"off"); $("#snd").classList.toggle("on",cfg.sound); };
+$("#acx").onclick=()=>{ cfg.autocomplete=!cfg.autocomplete; store.set("cfg",cfg); $("#acx").classList.toggle("on",cfg.autocomplete); if(!cfg.autocomplete) closeAC(); else if(STATE.phase==="run") updateAC(); };
 $("#brand").onclick=toMenu;
 $("#hlp").onclick=()=>toggleHelp(true);
 $("#help").onclick=e=>{ if(e.target===$("#help")) toggleHelp(false); };
@@ -1208,7 +1651,7 @@ function renderMini(){
   const W=120,H=22,max=Math.max(...vals),min=Math.min(...vals,0),rng=Math.max(1,max-min);
   const pts=vals.map((v,i)=>`${(i/(Math.max(1,vals.length-1))*W).toFixed(1)},${(H-((v-min)/rng)*(H-3)-1).toFixed(1)}`).join(" ");
   const key=cfg.discipline==="sprint"
-    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}`
+    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}|${cfg.autocomplete?"ac":"raw"}`
     : `nav|${cfg.navmode}|${cfg.navmode==="time"?cfg.navtime:cfg.navcount}|${cfg.navtask}`;
   const pb=PB[key]!=null?(cfg.discipline==="sprint"?Math.round(PB[key]):Math.round(PB[key]*10)/10):null;
   m.innerHTML=`<svg width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -1220,6 +1663,7 @@ function renderMini(){
  * ========================================================================== */
 applyTheme();
 $("#snd").textContent="sound "+(cfg.sound?"on":"off"); $("#snd").classList.toggle("on",cfg.sound);
+$("#acx").classList.toggle("on",cfg.autocomplete);
 renderConfig();
 showDiscipline();
 renderMini();

@@ -880,6 +880,7 @@ function renderAC(){
   });
 }
 function completeFunction(){
+  if(!ac.open) return;
   const f = ac.matches[ac.hi]; if(!f) return;
   const comp = f.n + "(";
   const seg  = run.target.slice(ac.tokenStart, ac.tokenStart + comp.length);
@@ -888,8 +889,9 @@ function completeFunction(){
     for(let p=run.index; p<newIndex; p++){ const s=run.spans[p]; if(s){ s.classList.remove("err"); s.classList.add("done"); } }
     if(newIndex > run.maxIndex){
       const now = performance.now()-run.startTime;
-      for(let p=run.maxIndex; p<newIndex; p++) run.keyTimes.push(now);
-      run.correct += newIndex - run.maxIndex;
+      const added = newIndex - run.maxIndex;
+      for(let p=0; p<added; p++) run.keyTimes.push(Math.max(0, now - (added-1-p)*45));
+      run.correct += added;
       run.maxIndex = newIndex;
     }
     run.index = newIndex;
@@ -1163,7 +1165,7 @@ function makeTask(type){
         prompt:`Select all of column <span class="k">${colName(c)}</span>'s data`,
         sub:"ctrl + shift + ↓", par:1};
     } else { // explicit rectangle
-      const r1=wb.r0, c1=wb.c0, r2=ri(wb.r0+1,wb.rEnd), c2=ri(wb.c0, wb.cEnd);
+      const r1=wb.r0, c1=wb.c0, r2=ri(wb.r0+1,wb.rEnd), c2=ri(wb.c0+1, wb.cEnd);
       const rect = {r1,c1,r2,c2};
       return {type, start:{r:r1,c:c1}, sel:null, target:rect,
         prompt:`Select <span class="k">${refStr(r1,c1)}:${refStr(r2,c2)}</span>`,
@@ -1196,7 +1198,7 @@ function setupTask(){
     $("#gridwrap").classList.remove("hidden");
     nav.active = {...t.start};
     nav.anchor = null;
-    nav.sel = t.type==="goto" ? null : null;
+    nav.sel = null;
     renderGrid(t);
   }
 }
@@ -1390,7 +1392,7 @@ function renderResults(r){
           <h4>weak keys</h4>
           ${chars.length ? chars.map(([c,n])=>`
             <div class="keyrow">
-              <span class="keycap">${prettyChar(c)}</span>
+              <span class="keycap">${escapeHtml(prettyChar(c))}</span>
               <span class="keybar"><i style="width:${Math.round(n/maxErr*100)}%"></i></span>
               <span class="keymeta">${n} miss${n>1?"es":""}</span>
             </div>`).join("")
@@ -1522,7 +1524,11 @@ function showDiscipline(){
  * ========================================================================== */
 let helpOpen=false;
 document.addEventListener("keydown", e=>{
-  if(helpOpen){ if(e.key==="Escape"){ toggleHelp(false);} return; }
+  if(helpOpen){
+    if(e.key==="Escape"){ e.preventDefault(); toggleHelp(false); }
+    else if((e.key==="Tab"||e.key==="Enter"||e.key===" ") && !e.ctrlKey && !e.metaKey && !e.altKey){ e.preventDefault(); }
+    return;
+  }
   if(STATE.phase==="results"){
     if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); restart(); }
     else if(e.key==="Escape"){ e.preventDefault(); toMenu(); }
@@ -1542,8 +1548,7 @@ document.addEventListener("keydown", e=>{
     if(STATE.phase==="menu"){
       if(e.key==="Tab"){ e.preventDefault(); startNav(); return; }
       if(e.key==="Escape") return;
-      if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","F4"].includes(e.key) ||
-         (e.key.length===1 && !e.ctrlKey && !e.metaKey)){
+      if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End","F4"].includes(e.key)){
         e.preventDefault(); startNav();
         // feed this first key to the engine
         navKey(e);

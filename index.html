@@ -125,6 +125,7 @@ main{
 #words .c{transition:color .04s}
 #words .c.done{color:var(--text)}
 #words .c.err{color:var(--err); background:color-mix(in srgb,var(--err) 22%,transparent); border-radius:3px}
+#words .c.pmatch{ font-weight:700; color:var(--accent) }
 #caret{
   position:absolute; width:2.5px; border-radius:2px; background:var(--caret);
   top:0; left:0; height:1.2em;
@@ -352,6 +353,7 @@ footer{
     <div class="lead">Excel reps for analysts. Two disciplines, one tight loop: type real banker formulas at speed, or drive an Excel grid with the keyboard. Open it, get reps, close it.</div>
     <div class="row"><span>Start a run</span><span>just start typing</span></div>
     <div class="row"><span>Complete a function</span><span>type a few letters · ↑↓ · tab</span></div>
+    <div class="row"><span>Case &amp; trailing parens</span><span>caps ignored · enter closes ) for you</span></div>
     <div class="row"><span>Restart (same settings)</span><span>tab</span></div>
     <div class="row"><span>Back to menu / abort</span><span>esc</span></div>
     <div class="row"><span>Fix a mistake</span><span>backspace</span></div>
@@ -978,12 +980,30 @@ function updateCaret(){
 
 function sprintKey(e){
   if(e.key==="Escape"){ e.preventDefault(); if(ac.open) closeAC(); else toMenu(); return; }
+  if(e.altKey && e.key==="ArrowDown"){ e.preventDefault(); if(ac.open) closeAC(); else updateAC(); return; }
   if(ac.open){                                   // dropdown is captive of these keys, just like Excel
     if(e.key==="ArrowDown"){ e.preventDefault(); ac.hi=Math.min(ac.matches.length-1, ac.hi+1); renderAC(); return; }
     if(e.key==="ArrowUp"){   e.preventDefault(); ac.hi=Math.max(0, ac.hi-1); renderAC(); return; }
+    if(e.key==="Home"){ e.preventDefault(); ac.hi=0; renderAC(); return; }
+    if(e.key==="End"){  e.preventDefault(); ac.hi=ac.matches.length-1; renderAC(); return; }
+    if(e.key==="PageDown"){ e.preventDefault(); ac.hi=Math.min(ac.matches.length-1, ac.hi+8); renderAC(); return; }
+    if(e.key==="PageUp"){   e.preventDefault(); ac.hi=Math.max(0, ac.hi-8); renderAC(); return; }
     if(e.key==="Tab"){       e.preventDefault(); completeFunction(); return; }
+    if(e.key==="Enter"){ e.preventDefault(); completeFunction(); return; }
   }
   if(e.key==="Tab"){ e.preventDefault(); startSprint(); return; }
+  if(e.key==="Enter"){
+    e.preventDefault();
+    const rest = run.target.slice(run.index);
+    if(rest.length && /^\)+$/.test(rest)){
+      const now = performance.now()-run.startTime, start = run.maxIndex;
+      for(let p=run.index; p<run.target.length; p++){ run.spans[p].classList.remove("err"); run.spans[p].classList.add("done"); }
+      run.index = run.target.length;
+      if(run.index>start){ for(let p=start;p<run.index;p++) run.keyTimes.push(Math.max(0, now-(run.index-1-p)*45)); run.correct += run.index-start; run.maxIndex = run.index; }
+      closeAC(); completeFormula();
+    }
+    return;
+  }
   if(e.key==="Backspace"){
     e.preventDefault();
     if(run.index>0){ run.index--; run.spans[run.index].classList.remove("done"); updateCaret(); updateAC(); }
@@ -992,6 +1012,20 @@ function sprintKey(e){
   if(e.key.length!==1 || e.ctrlKey || e.metaKey || e.altKey) return;
   e.preventDefault();
   typeChar(e.key);
+}
+
+function flashParenMatch(closeIdx){
+  wordsEl.querySelectorAll(".c.pmatch").forEach(el=>el.classList.remove("pmatch"));
+  let depth=0;
+  for(let p=closeIdx; p>=0; p--){
+    if(run.target[p]===")") depth++;
+    else if(run.target[p]==="("){ depth--; if(depth===0){
+      const a=run.spans[p], b=run.spans[closeIdx];
+      if(a) a.classList.add("pmatch"); if(b) b.classList.add("pmatch");
+      setTimeout(()=>{ if(a) a.classList.remove("pmatch"); if(b) b.classList.remove("pmatch"); }, 500);
+      break;
+    }}
+  }
 }
 
 function typeChar(ch){
@@ -1009,6 +1043,7 @@ function typeChar(ch){
     const s = run.spans[run.index];
     s.classList.remove("err"); s.classList.add("done");
     run.index++;
+    if(expected===")") flashParenMatch(run.index-1);
     if(run.index > run.maxIndex){
       run.maxIndex = run.index;
       run.correct++;
@@ -1268,6 +1303,14 @@ function navKey(e){
     if(shift && !nav.anchor) nav.anchor={...nav.active};
     if(!shift) nav.anchor=null;
     nav.active = ctrl ? {r:1,c:1} : {r:nav.active.r, c:1};
+    nav.sel = shift ? rectOf(nav.anchor, nav.active) : null;
+    nav.keys++; renderGrid(t); checkTask(); return;
+  }
+  else if(e.key==="End"){
+    e.preventDefault();
+    if(shift && !nav.anchor) nav.anchor={...nav.active};
+    if(!shift) nav.anchor=null;
+    nav.active = ctrl ? {r:nav.wb.rEnd, c:nav.wb.cEnd} : {r:nav.active.r, c:nav.wb.cEnd};
     nav.sel = shift ? rectOf(nav.anchor, nav.active) : null;
     nav.keys++; renderGrid(t); checkTask(); return;
   }

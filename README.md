@@ -20,7 +20,9 @@ http://localhost:5188/)
   **Excel-style function autocomplete** is built in: type a few letters of a function and a
   dropdown of matching Excel functions appears (the real ~230-function library, not just
   the ones in the drill); `↑`/`↓` to pick, `Tab` to insert the name up to the `(` — exactly
-  like Excel. Case doesn't matter. Toggle it with the `fx` button (top-right).
+  like Excel. Case doesn't matter (typing is case-insensitive outside string literals, just
+  like Excel), and pressing `Enter` when only trailing `)` remain auto-closes them and
+  completes the formula. Toggle the autocomplete with the `fx` button (top-right).
 - **Navigate** — drive an Excel-like grid with the keyboard: arrows, `Ctrl+arrow` to leap
   data edges, `Shift` / `Ctrl+Shift` range selection, and the `F4` anchor cycle.
 

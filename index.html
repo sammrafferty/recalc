@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>recalc — excel reps for analysts</title>
+<style>
+/* ============================================================= *
+ *  recalc — a Monkeytype-style arena for Excel fluency          *
+ *  Single file. No build. Keyboard-first.                       *
+ * ============================================================= */
+
+:root{
+  --mono: "Cascadia Code","JetBrains Mono","SF Mono","Cascadia Mono",Consolas,"Roboto Mono",ui-monospace,monospace;
+  /* default theme: excel */
+  --bg:#0e1012; --bg2:#15181c; --line:#21262c;
+  --text:#e6e9ee;        /* typed / bright */
+  --sub:#4d545e;         /* upcoming / muted */
+  --faint:#2e343b;       /* dividers / very dim */
+  --accent:#4ec486;      /* excel green */
+  --accent2:#2f8f5f;
+  --err:#e2554e;
+  --caret:var(--accent);
+  --good:#4ec486;
+}
+body[data-theme="amber"]{
+  --bg:#0a0a07; --bg2:#13110b; --line:#2a2410;
+  --text:#ffb000; --sub:#5a4a1e; --faint:#2a2410;
+  --accent:#ffb000; --accent2:#b87d00; --err:#ff5f56; --caret:#ffb000; --good:#ffb000;
+}
+body[data-theme="slate"]{
+  --bg:#0f1217; --bg2:#161b22; --line:#222a33;
+  --text:#dfe6f0; --sub:#4a5462; --faint:#2a323c;
+  --accent:#6ea8fe; --accent2:#3d6fd1; --err:#f0716a; --caret:#6ea8fe; --good:#6ea8fe;
+}
+body[data-theme="paper"]{
+  --bg:#efece3; --bg2:#e6e2d6; --line:#d4cfbf;
+  --text:#26261f; --sub:#aaa491; --faint:#d4cfbf;
+  --accent:#1f7a4d; --accent2:#155c39; --err:#bd3b32; --caret:#1f7a4d; --good:#1f7a4d;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:var(--mono);
+  display:flex; flex-direction:column;
+  height:100vh; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  transition:background .25s ease, color .25s ease;
+  user-select:none;
+}
+
+/* ---------- top bar ---------- */
+header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 26px; flex:0 0 auto;
+}
+.brand{
+  font-weight:600; font-size:19px; letter-spacing:-.5px;
+  color:var(--text); display:flex; align-items:center; gap:1px;
+  cursor:pointer;
+}
+.brand .accent{color:var(--accent)}
+.brand .blk{
+  display:inline-block; width:9px; height:18px; margin-left:3px;
+  background:var(--accent); transform:translateY(2px);
+  animation:blink 1.1s steps(1) infinite;
+}
+@keyframes blink{50%{opacity:0}}
+.bar-right{display:flex; gap:4px; align-items:center}
+.icon{
+  background:none; border:none; color:var(--sub); cursor:pointer;
+  font-family:var(--mono); font-size:14px; padding:7px 9px; border-radius:7px;
+  transition:color .15s, background .15s; line-height:1;
+}
+.icon:hover{color:var(--text); background:var(--bg2)}
+.icon.on{color:var(--accent)}
+
+/* ---------- main ---------- */
+main{
+  flex:1 1 auto; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:0 24px; position:relative;
+}
+.wrap{width:100%; max-width:880px}
+
+/* ---------- config pills ---------- */
+#config{
+  display:flex; flex-wrap:wrap; gap:8px 14px; justify-content:center;
+  align-items:center; margin-bottom:38px;
+  transition:opacity .2s; font-size:13px;
+}
+.grp{display:flex; gap:5px; align-items:center}
+.grp-label{color:var(--faint); font-size:11px; letter-spacing:.5px; margin-right:3px; text-transform:lowercase}
+.divider{width:1px; height:15px; background:var(--line); margin:0 4px}
+.pill{
+  background:none; border:none; color:var(--sub); cursor:pointer;
+  font-family:var(--mono); font-size:13px; padding:4px 9px; border-radius:7px;
+  transition:color .12s, background .12s;
+}
+.pill:hover{color:var(--text)}
+.pill.active{color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent)}
+
+/* ---------- live readout ---------- */
+#live{
+  display:flex; align-items:baseline; gap:22px; height:42px;
+  margin-bottom:14px; opacity:0; transition:opacity .2s;
+  font-variant-numeric:tabular-nums;
+}
+#live.show{opacity:1}
+#live .big{color:var(--accent); font-size:34px; font-weight:600; line-height:1}
+#live .lbl{color:var(--sub); font-size:12px; letter-spacing:.5px}
+#live .stat{display:flex; align-items:baseline; gap:7px}
+#live .stat b{color:var(--text); font-weight:500; font-size:16px}
+
+/* ---------- sprint arena ---------- */
+#sprint{position:relative}
+#words{
+  position:relative; font-size:30px; line-height:1.65;
+  letter-spacing:.3px; color:var(--sub);
+  white-space:pre-wrap; overflow-wrap:anywhere; word-break:normal;
+  min-height:1.65em;
+}
+#words .c{transition:color .04s}
+#words .c.done{color:var(--text)}
+#words .c.err{color:var(--err); background:color-mix(in srgb,var(--err) 22%,transparent); border-radius:3px}
+#caret{
+  position:absolute; width:2.5px; border-radius:2px; background:var(--caret);
+  top:0; left:0; height:1.2em;
+  transition:left .085s ease, top .12s ease;
+  box-shadow:0 0 7px color-mix(in srgb,var(--caret) 55%,transparent);
+}
+#caret.blink{animation:caretblink 1s steps(1) infinite}
+@keyframes caretblink{50%{opacity:0}}
+#next{
+  margin-top:30px; font-size:16px; color:var(--faint);
+  letter-spacing:.3px; min-height:1.4em; white-space:pre-wrap; overflow-wrap:anywhere;
+}
+#next .tag{font-size:10px; letter-spacing:1px; text-transform:uppercase; margin-right:10px; color:var(--faint)}
+
+/* ---------- navigate arena ---------- */
+#nav{width:100%}
+#nav-prompt{
+  text-align:center; font-size:18px; color:var(--text); margin-bottom:4px;
+  min-height:1.4em;
+}
+#nav-prompt .k{color:var(--accent)}
+#nav-sub{text-align:center; color:var(--sub); font-size:12px; margin-bottom:22px; min-height:1.2em}
+#gridwrap{display:flex; justify-content:center}
+#grid{
+  display:grid; gap:0; border:1px solid var(--line);
+  background:var(--bg); font-size:12px; font-variant-numeric:tabular-nums;
+  border-radius:6px; overflow:hidden;
+}
+.cell{
+  border-right:1px solid var(--faint); border-bottom:1px solid var(--faint);
+  height:25px; display:flex; align-items:center; justify-content:flex-end;
+  padding:0 6px; color:var(--sub); position:relative;
+}
+.cell.hdr{
+  background:var(--bg2); color:var(--sub); justify-content:center;
+  font-size:11px; height:22px;
+}
+.cell.rownum{background:var(--bg2); color:var(--sub); justify-content:center; padding:0}
+.cell.filled{color:color-mix(in srgb,var(--text) 60%,transparent)}
+.cell.sel{background:color-mix(in srgb,var(--accent) 13%,transparent)}
+.cell.active{
+  box-shadow:inset 0 0 0 2px var(--accent);
+  color:var(--text); z-index:2;
+}
+.cell.target{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 45%,transparent)}
+
+/* anchor sub-drill */
+#anchor-drill{text-align:center}
+#anchor-ref{font-size:54px; font-weight:600; letter-spacing:1px; color:var(--text); margin:6px 0 4px}
+#anchor-ref .lock{color:var(--accent)}
+#anchor-goal{color:var(--sub); font-size:15px}
+#anchor-goal b{color:var(--accent); font-weight:600}
+
+/* ---------- results ---------- */
+#results{width:100%; max-width:840px; animation:rise .35s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
+.res-top{display:flex; gap:40px; align-items:flex-start; margin-bottom:26px; flex-wrap:wrap}
+.heroes{display:flex; flex-direction:column; gap:14px; min-width:160px}
+.hero .v{font-size:62px; font-weight:600; line-height:.95; color:var(--accent); font-variant-numeric:tabular-nums}
+.hero .u{font-size:13px; color:var(--sub); letter-spacing:.5px}
+.hero.sub .v{font-size:34px; color:var(--text)}
+.pb{font-size:11px; color:var(--bg); background:var(--accent); padding:2px 8px; border-radius:20px; display:inline-block; margin-top:6px; font-weight:600; letter-spacing:.5px}
+.graphbox{flex:1 1 360px; min-width:300px}
+#graph{width:100%; height:170px; display:block}
+.gx{fill:var(--faint); font-size:9px; font-family:var(--mono)}
+.res-grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:16px 26px; border-top:1px solid var(--line); padding-top:20px; margin-bottom:20px;
+}
+.kv .v{font-size:22px; color:var(--text); font-variant-numeric:tabular-nums; font-weight:500}
+.kv .v small{font-size:13px; color:var(--sub)}
+.kv .k{font-size:11px; color:var(--sub); letter-spacing:.5px; margin-top:2px}
+.res-cols{display:grid; grid-template-columns:1fr 1fr; gap:30px; border-top:1px solid var(--line); padding-top:20px}
+@media(max-width:640px){.res-cols{grid-template-columns:1fr}}
+.panel h4{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--sub); margin-bottom:12px; font-weight:600}
+.keyrow{display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:13px}
+.keycap{
+  min-width:30px; height:28px; padding:0 8px; display:inline-flex; align-items:center; justify-content:center;
+  background:var(--bg2); border:1px solid var(--line); border-radius:6px; color:var(--text); font-size:15px;
+}
+.keybar{flex:1; height:6px; background:var(--bg2); border-radius:4px; overflow:hidden}
+.keybar i{display:block; height:100%; background:var(--err); border-radius:4px}
+.keymeta{color:var(--sub); font-size:12px; min-width:54px; text-align:right}
+.clean{color:var(--sub); font-size:13px; line-height:1.7}
+.clean b{color:var(--good)}
+.res-actions{display:flex; gap:12px; justify-content:center; margin-top:26px; align-items:center}
+.btn{
+  background:none; border:1px solid var(--line); color:var(--sub); cursor:pointer;
+  font-family:var(--mono); font-size:13px; padding:9px 18px; border-radius:9px;
+  transition:all .15s; letter-spacing:.3px;
+}
+.btn:hover{color:var(--text); border-color:var(--sub)}
+.btn.primary{border-color:var(--accent); color:var(--accent)}
+.btn.primary:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.kbd{color:var(--faint); font-size:11px}
+.kbd b{color:var(--sub)}
+
+/* ---------- footer ---------- */
+footer{
+  flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+  padding:14px 26px; font-size:11px; color:var(--faint);
+}
+.hints span{margin-right:16px}
+.hints b{color:var(--sub)}
+.mini{display:flex; align-items:center; gap:10px}
+.mini svg{display:block}
+.mini .pbnum{color:var(--sub)}
+.mini .pbnum b{color:var(--accent)}
+
+/* ---------- help ---------- */
+#help{
+  position:fixed; inset:0; background:color-mix(in srgb,var(--bg) 86%,transparent);
+  display:none; align-items:center; justify-content:center; z-index:50; backdrop-filter:blur(3px);
+}
+#help.show{display:flex; animation:rise .2s ease}
+.card{
+  background:var(--bg2); border:1px solid var(--line); border-radius:14px;
+  padding:30px 34px; max-width:560px; width:90%;
+}
+.card h3{font-size:16px; margin-bottom:4px}
+.card .lead{color:var(--sub); font-size:13px; margin-bottom:18px; line-height:1.6}
+.card .row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--faint); font-size:13px; color:var(--text)}
+.card .row span:last-child{color:var(--sub)}
+.card .closehint{text-align:center; color:var(--faint); font-size:11px; margin-top:18px}
+
+.hidden{display:none !important}
+.fade{opacity:.12; pointer-events:none}
+</style>
+</head>
+<body data-theme="excel">
+
+<header>
+  <div class="brand" id="brand">re<span class="accent">calc</span><span class="blk"></span></div>
+  <div class="bar-right">
+    <button class="icon" id="snd" title="keypress sound">sound off</button>
+    <button class="icon" id="thm" title="theme">excel</button>
+    <button class="icon" id="hlp" title="help">?</button>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <!-- CONFIG -->
+    <div id="config"></div>
+
+    <!-- LIVE READOUT -->
+    <div id="live">
+      <div class="stat"><span class="big" id="live-main">30</span><span class="lbl" id="live-main-lbl">left</span></div>
+      <div class="stat"><b id="live-wpm">0</b><span class="lbl">wpm</span></div>
+      <div class="stat"><b id="live-acc">100%</b><span class="lbl">acc</span></div>
+    </div>
+
+    <!-- SPRINT -->
+    <div id="sprint">
+      <div id="words"><div id="caret" class="blink"></div></div>
+      <div id="next"></div>
+    </div>
+
+    <!-- NAVIGATE -->
+    <div id="nav" class="hidden">
+      <div id="nav-prompt"></div>
+      <div id="nav-sub"></div>
+      <div id="gridwrap"><div id="grid"></div></div>
+      <div id="anchor-drill" class="hidden">
+        <div id="anchor-ref"></div>
+        <div id="anchor-goal"></div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="hidden"></div>
+
+  </div>
+</main>
+
+<footer>
+  <div class="hints" id="hints">
+    <span><b>type</b> to start</span>
+    <span><b>tab</b> restart</span>
+    <span><b>esc</b> menu</span>
+  </div>
+  <div class="mini" id="mini"></div>
+</footer>
+
+<div id="help">
+  <div class="card">
+    <h3>recalc</h3>
+    <div class="lead">Excel reps for analysts. Two disciplines, one tight loop: type real banker formulas at speed, or drive an Excel grid with the keyboard. Open it, get reps, close it.</div>
+    <div class="row"><span>Start a run</span><span>just start typing</span></div>
+    <div class="row"><span>Restart (same settings)</span><span>tab</span></div>
+    <div class="row"><span>Back to menu / abort</span><span>esc</span></div>
+    <div class="row"><span>Fix a mistake</span><span>backspace</span></div>
+    <div class="row"><span>Navigate grid</span><span>arrows · ctrl+arrows · shift</span></div>
+    <div class="row"><span>Anchor a reference</span><span>F4</span></div>
+    <div class="closehint">esc or click anywhere to close</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+ *  recalc  —  state, generators, engines, rendering
+ * ========================================================================== */
+
+const $ = s => document.querySelector(s);
+const ri = (a,b) => a + Math.floor(Math.random()*(b-a+1));      // inclusive int
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const chance = p => Math.random() < p;
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+
+/* ----------------------------- persistence ------------------------------- */
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem("recalc."+k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
+  set(k,v){ try{ localStorage.setItem("recalc."+k, JSON.stringify(v)); }catch(e){} }
+};
+const cfg = Object.assign({
+  discipline:"sprint",
+  category:"all", difficulty:"std",
+  mode:"time", time:30, count:15,
+  navtask:"mixed", navmode:"count", navtime:60, navcount:12,
+  theme:"excel", sound:false
+}, store.get("cfg",{}));
+
+const PB = store.get("pb",{});
+let HIST = store.get("hist",[]);
+
+const STATE = { phase:"menu" }; // menu | run | results
+
+/* ============================================================================
+ *  FORMULA GENERATOR  — the soul of the drills
+ * ========================================================================== */
+const COLS = "ABCDEFGHIJKLMNOP".split("");
+const NAMED = ["Revenue","COGS","OpEx","EBITDA","Units","Price","Sales","Margin",
+  "Region","Segment","Year","TaxRate","Capex","Depr","WorkCap","FCF","Cost","Drivers"];
+const SHEETS = ["IS","BS","CF","Assumptions","Model","Summary","Drivers","Output"];
+const SHEETS_SP = ["Income Statement","Balance Sheet","Cash Flow","DCF Model","Rev Build"];
+
+function colL(){ return COLS[ri(0,11)]; }
+function prevColOf(c){ return COLS[Math.max(0, COLS.indexOf(c)-1)]; }
+function aref(c,r,mode){
+  if(mode==="rand") mode = pick(["none","abs","rowabs","colabs"]);
+  if(mode==="abs")    return "$"+c+"$"+r;
+  if(mode==="rowabs") return c+"$"+r;
+  if(mode==="colabs") return "$"+c+r;
+  return c+r;
+}
+function cell(mode){ return aref(colL(), ri(2,40), mode||"none"); }
+function vrange(mode){ const c=colL(), r1=ri(2,8), r2=r1+ri(8,32); return aref(c,r1,mode||"none")+":"+aref(c,r2,mode||"none"); }
+function hrange(mode){ const r=ri(1,4); const a=ri(0,5), b=a+ri(2,6); return aref(COLS[a],r,mode||"none")+":"+aref(COLS[b],r,mode||"none"); }
+function block(mode){ const c1=ri(0,2), c2=c1+ri(3,6), r1=ri(1,3), r2=r1+ri(20,60); return aref(COLS[c1],r1,mode||"none")+":"+aref(COLS[c2],r2,mode||"none"); }
+function sheetPfx(){ if(chance(.55)){ return pick(SHEETS)+"!"; } return "'"+pick(SHEETS_SP)+"'!"; }
+function crit(){
+  return pick([
+    '"'+pick(["North","South","EMEA","APAC","US","Base","Bull","FY24"])+'"',
+    String(ri(2019,2027)),
+    cell("rand"),
+    '">"&0',
+    '">="&'+cell("abs"),
+    "TRUE","FALSE",
+    '"'+pick(["A","B","C","Seg"])+'*"'
+  ]);
+}
+
+// each: {name, cat, diff, gen}
+const TEMPLATES = [
+  // ---- lookups ----
+  {name:"vlookup",   cat:"lookup", diff:2, gen:()=>`=VLOOKUP(${cell("colabs")},${block("abs")},${ri(2,6)},0)`},
+  {name:"xlookup",   cat:"lookup", diff:2, gen:()=>`=XLOOKUP(${cell("colabs")},${vrange("abs")},${vrange("abs")})`},
+  {name:"xlookup-nf",cat:"lookup", diff:3, gen:()=>`=XLOOKUP(${cell("colabs")},${vrange("abs")},${vrange("abs")},0)`},
+  {name:"index/match",cat:"lookup",diff:2, gen:()=>`=INDEX(${vrange("abs")},MATCH(${cell("colabs")},${vrange("abs")},0))`},
+  {name:"index 2d",  cat:"lookup", diff:3, gen:()=>`=INDEX(${block("abs")},MATCH(${cell("colabs")},${vrange("abs")},0),MATCH(${cell("rowabs")},${hrange("abs")},0))`},
+  {name:"hlookup",   cat:"lookup", diff:2, gen:()=>`=HLOOKUP(${cell("rowabs")},${block("abs")},${ri(2,8)},FALSE)`},
+  // ---- aggregation ----
+  {name:"sum",       cat:"sum", diff:1, gen:()=>`=SUM(${vrange()})`},
+  {name:"sum-stack", cat:"sum", diff:1, gen:()=>`=SUM(${vrange()})-${cell()}`},
+  {name:"sumifs-1",  cat:"sum", diff:2, gen:()=>`=SUMIFS(${vrange("abs")},${vrange("abs")},${crit()})`},
+  {name:"sumifs-2",  cat:"sum", diff:3, gen:()=>`=SUMIFS(${vrange("abs")},${vrange("abs")},${crit()},${vrange("abs")},${crit()})`},
+  {name:"sumif",     cat:"sum", diff:2, gen:()=>`=SUMIF(${vrange("abs")},${crit()},${vrange("abs")})`},
+  {name:"sumproduct",cat:"sum", diff:2, gen:()=>`=SUMPRODUCT(${vrange("abs")},${vrange("abs")})`},
+  {name:"averageifs",cat:"sum", diff:2, gen:()=>`=AVERAGEIFS(${vrange("abs")},${vrange("abs")},${crit()})`},
+  {name:"countifs",  cat:"sum", diff:1, gen:()=>`=COUNTIFS(${vrange("abs")},${crit()})`},
+  {name:"sumifs-named",cat:"sum",diff:1, gen:()=>`=SUMIFS(${pick(NAMED)},${pick(NAMED)},${crit()})`},
+  // ---- logic ----
+  {name:"if-max",    cat:"logic", diff:1, gen:()=>{const a=cell(),b=cell();return `=IF(${a}>${b},${a},${b})`;}},
+  {name:"if-floor",  cat:"logic", diff:1, gen:()=>{const a=cell();return `=IF(${a}>0,${a},0)`;}},
+  {name:"iferror",   cat:"logic", diff:1, gen:()=>`=IFERROR(${cell()}/${cell()},0)`},
+  {name:"growth%",   cat:"logic", diff:2, gen:()=>{const a=cell();return `=IFERROR(${a}/${cell()}-1,0)`;}},
+  {name:"ifs",       cat:"logic", diff:2, gen:()=>{const a=cell();return `=IFS(${a}>0,1,${a}<0,-1,TRUE,0)`;}},
+  {name:"if-and",    cat:"logic", diff:2, gen:()=>`=IF(AND(${cell()}>0,${cell()}>0),1,0)`},
+  {name:"if-or",     cat:"logic", diff:2, gen:()=>`=IF(OR(${cell()}>0,${cell()}>0),1,0)`},
+  {name:"nested-if", cat:"logic", diff:3, gen:()=>{const a=cell();return `=IF(${a}>${cell()},"H",IF(${a}>${cell()},"M","L"))`;}},
+  // ---- model lines ----
+  {name:"growth",    cat:"model", diff:1, gen:()=>{const c=colL(),r=ri(5,30);return `=${aref(prevColOf(c),r,"none")}*(1+${aref(c,ri(2,4),"rowabs")})`;}},
+  {name:"% of sales",cat:"model", diff:1, gen:()=>`=${cell()}*${aref(colL(),ri(2,5),"colabs")}`},
+  {name:"margin",    cat:"model", diff:1, gen:()=>{const c=colL();return `=${aref(c,ri(10,20),"none")}/${aref(c,ri(4,9),"none")}`;}},
+  {name:"ebitda",    cat:"model", diff:2, gen:()=>{const c=colL(),r=ri(8,12);return `=${aref(c,r,"none")}-${aref(c,r+1,"none")}-${aref(c,r+2,"none")}`;}},
+  {name:"tax",       cat:"model", diff:2, gen:()=>`=-MAX(${cell()}*${aref(colL(),ri(2,4),"abs")},0)`},
+  {name:"interest",  cat:"model", diff:3, gen:()=>{const c=colL(),r=ri(18,30);return `=-${aref(c,ri(3,5),"rowabs")}*AVERAGE(${aref(c,r,"none")},${aref(prevColOf(c),r,"none")})`;}},
+  {name:"cagr",      cat:"model", diff:2, gen:()=>{const c=colL();return `=(${aref(c,ri(14,18),"none")}/${aref(c,ri(5,9),"none")})^(1/${ri(3,9)})-1`;}},
+  {name:"disc factor",cat:"model",diff:2, gen:()=>`=1/(1+${aref(colL(),ri(3,6),"abs")})^${aref(colL(),3,"rowabs")}`},
+  {name:"mid-year",  cat:"model", diff:3, gen:()=>{const c=colL();return `=1/(1+${aref(c,4,"abs")})^(${aref(c,3,"rowabs")}-0.5)`;}},
+  // ---- anchoring (mixed-ref heavy: the F4 muscle) ----
+  {name:"two-way",   cat:"anchor",diff:2, gen:()=>{const c=colL(),r=ri(5,20);return `=${aref(c,r,"rowabs")}*${aref(prevColOf(c),r,"colabs")}`;}},
+  {name:"sumifs-grid",cat:"anchor",diff:3,gen:()=>`=SUMIFS(${vrange("abs")},${vrange("abs")},${aref("A",ri(2,9),"colabs")},${vrange("abs")},${aref(colL(),1,"rowabs")})`},
+  {name:"anchor-add",cat:"anchor",diff:2, gen:()=>{const c=colL(),r=ri(5,15);return `=${aref(c,r,"abs")}+${aref(c,r+3,"rowabs")}-${aref(prevColOf(c),r,"colabs")}`;}},
+  // ---- references / cross-sheet / punctuation ----
+  {name:"sheet-ref", cat:"ref", diff:1, gen:()=>`=${sheetPfx()}${cell("abs")}`},
+  {name:"sheet-sum", cat:"ref", diff:2, gen:()=>`=SUM(${sheetPfx()}${vrange("abs")})`},
+  {name:"named*ref", cat:"ref", diff:1, gen:()=>`=${pick(NAMED)}*${sheetPfx()}${cell("abs")}`},
+  {name:"x-sheet sumifs",cat:"ref",diff:3,gen:()=>`=SUMIFS(${sheetPfx()}${vrange("abs")},${sheetPfx()}${vrange("abs")},${crit()})`},
+  {name:"concat",    cat:"ref", diff:2, gen:()=>{const r=ri(2,20);return `=${aref(colL(),r,"none")}&" "&${aref(colL(),r,"none")}`;}},
+  {name:"iferror-idx",cat:"ref",diff:3, gen:()=>`=IFERROR(INDEX(${vrange("abs")},MATCH(${cell("colabs")},${vrange("abs")},0)),"-")`},
+];
+
+let lastTpl = "";
+function nextFormula(){
+  let pool = TEMPLATES.filter(t => cfg.category==="all" || t.cat===cfg.category);
+  let dpool = pool;
+  if(cfg.difficulty==="easy") dpool = pool.filter(t=>t.diff<=1);
+  else if(cfg.difficulty==="hard") dpool = pool.filter(t=>t.diff>=2);
+  if(!dpool.length) dpool = pool;
+  let t, tries=0;
+  do { t = pick(dpool); tries++; } while(t.name===lastTpl && dpool.length>1 && tries<6);
+  lastTpl = t.name;
+  return { text:t.gen(), name:t.name, cat:t.cat };
+}
+
+/* ============================================================================
+ *  CHAR CLASSIFICATION  — powers the weak-keys breakdown
+ * ========================================================================== */
+function classOf(ch){
+  if(/[A-Za-z]/.test(ch)) return "letters";
+  if(/[0-9]/.test(ch)) return "digits";
+  if(ch==="("||ch===")") return "parentheses";
+  if(ch===",") return "commas";
+  if(ch==="$") return "dollar signs";
+  if(ch==='"'||ch==="'") return "quotes";
+  if(ch===" ") return "spaces";
+  if(ch==="!") return "sheet refs";
+  if("+-*/^<>=&:.".includes(ch)) return "operators";
+  return "symbols";
+}
+function prettyChar(ch){ return ch===" " ? "␣" : ch; }
+
+/* ============================================================================
+ *  SPRINT ENGINE
+ * ========================================================================== */
+const wordsEl = $("#words");
+const caretEl = $("#caret");
+const nextEl  = $("#next");
+
+let run = null;
+function newRun(){
+  return {
+    target:"", index:0, maxIndex:0,
+    current:null, next:null, spans:[],
+    correct:0, errors:0,
+    startTime:0, fstart:0,
+    keyTimes:[], errorTimes:[],
+    errByChar:{}, errByClass:{},
+    perFormula:[], formulasDone:0,
+    tick:null
+  };
+}
+
+function startSprint(){
+  STATE.phase="run"; lastTpl="";
+  run = newRun();
+  run.startTime = performance.now();
+  $("#config").classList.add("fade");
+  $("#live").classList.add("show");
+  run.current = nextFormula();
+  run.next = nextFormula();
+  loadCurrent();
+  $("#live-main-lbl").textContent = cfg.mode==="time" ? "left" : "done";
+  startTicker();
+}
+
+function loadCurrent(){
+  run.target = run.current.text;
+  run.index = 0; run.maxIndex = 0; run.fstart = performance.now();
+  run.spans = [];
+  wordsEl.innerHTML = "";
+  wordsEl.appendChild(caretEl);
+  const frag = document.createDocumentFragment();
+  for(const ch of run.target){
+    const s = document.createElement("span");
+    s.className = "c"; s.textContent = ch;
+    run.spans.push(s); frag.appendChild(s);
+  }
+  wordsEl.appendChild(frag);
+  nextEl.innerHTML = `<span class="tag">${run.next.cat}</span>${escapeHtml(run.next.text)}`;
+  updateCaret();
+}
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+let caretIdle=null;
+function updateCaret(){
+  const i = run.index;
+  let x, y, h;
+  if(i < run.spans.length){
+    const s = run.spans[i]; x = s.offsetLeft; y = s.offsetTop; h = s.offsetHeight;
+  } else if(run.spans.length){
+    const s = run.spans[run.spans.length-1]; x = s.offsetLeft + s.offsetWidth; y = s.offsetTop; h = s.offsetHeight;
+  } else { x=0; y=0; h=wordsEl.offsetHeight; }
+  caretEl.style.height = h + "px";
+  caretEl.style.left = x + "px";
+  caretEl.style.top  = y + "px";
+  caretEl.classList.remove("blink");
+  clearTimeout(caretIdle);
+  caretIdle = setTimeout(()=>caretEl.classList.add("blink"), 900);
+}
+
+function sprintKey(e){
+  if(e.key==="Escape"){ e.preventDefault(); toMenu(); return; }
+  if(e.key==="Tab"){ e.preventDefault(); startSprint(); return; }
+  if(e.key==="Backspace"){
+    e.preventDefault();
+    if(run.index>0){ run.index--; run.spans[run.index].classList.remove("done"); updateCaret(); }
+    return;
+  }
+  if(e.key.length!==1 || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  typeChar(e.key);
+}
+
+function typeChar(ch){
+  const expected = run.target[run.index];
+  if(expected === undefined) return;
+  if(ch === expected){
+    const s = run.spans[run.index];
+    s.classList.remove("err"); s.classList.add("done");
+    run.index++;
+    if(run.index > run.maxIndex){
+      run.maxIndex = run.index;
+      run.correct++;
+      run.keyTimes.push(performance.now()-run.startTime);
+    }
+    beep(true);
+    if(run.index === run.target.length) completeFormula();
+    else updateCaret();
+  } else {
+    run.errors++;
+    run.errByChar[expected] = (run.errByChar[expected]||0)+1;
+    const cl = classOf(expected);
+    run.errByClass[cl] = (run.errByClass[cl]||0)+1;
+    run.errorTimes.push(performance.now()-run.startTime);
+    const s = run.spans[run.index];
+    s.classList.add("err");
+    setTimeout(()=>{ if(s.classList.contains("err") && !s.classList.contains("done")) s.classList.remove("err"); }, 240);
+    beep(false);
+  }
+}
+
+function completeFormula(){
+  run.perFormula.push({
+    name:run.current.name, cat:run.current.cat,
+    chars:run.target.length, ms:performance.now()-run.fstart
+  });
+  run.formulasDone++;
+  if(cfg.mode==="count" && run.formulasDone >= cfg.count){ finishSprint(); return; }
+  run.current = run.next;
+  run.next = nextFormula();
+  loadCurrent();
+}
+
+function startTicker(){
+  clearInterval(run.tick);
+  run.tick = setInterval(()=>{
+    const el = (performance.now()-run.startTime)/1000;
+    if(cfg.mode==="time"){
+      const left = Math.max(0, cfg.time - el);
+      $("#live-main").textContent = Math.ceil(left);
+      if(left <= 0){ finishSprint(); return; }
+    } else {
+      $("#live-main").textContent = run.formulasDone + "/" + cfg.count;
+    }
+    const wpm = el>0 ? (run.correct/5)/(el/60) : 0;
+    $("#live-wpm").textContent = Math.round(wpm);
+    const total = run.correct + run.errors;
+    $("#live-acc").textContent = (total? Math.round(run.correct/total*100):100) + "%";
+  }, 100);
+}
+
+function finishSprint(){
+  clearInterval(run.tick);
+  const end = performance.now();
+  const elapsed = (end - run.startTime)/1000;
+  const wpm = elapsed>0 ? (run.correct/5)/(elapsed/60) : 0;
+  const raw = elapsed>0 ? ((run.correct+run.errors)/5)/(elapsed/60) : 0;
+  const total = run.correct + run.errors;
+  const acc = total ? run.correct/total*100 : 100;
+
+  // per-second buckets for graph + consistency
+  const secs = Math.max(1, Math.ceil(elapsed));
+  const buckets = new Array(secs).fill(0);
+  for(const t of run.keyTimes){ const s = Math.min(secs-1, Math.floor(t/1000)); buckets[s]++; }
+  const wpmSeries = buckets.map(c => (c/5)*60);
+  const errSeries = new Array(secs).fill(0);
+  for(const t of run.errorTimes){ const s = Math.min(secs-1, Math.floor(t/1000)); errSeries[s]++; }
+  // drop a misleadingly-low final bucket (the partial trailing second)
+  if(wpmSeries.length>3){
+    const rest = wpmSeries.slice(0,-1).filter(v=>v>0).sort((a,b)=>a-b);
+    const med = rest.length ? rest[Math.floor(rest.length/2)] : 0;
+    if(med>0 && wpmSeries[wpmSeries.length-1] < med*0.6){ wpmSeries.pop(); errSeries.pop(); }
+  }
+  // consistency = 1 - coefficient of variation of per-second wpm
+  const mean = wpmSeries.reduce((a,b)=>a+b,0)/Math.max(1,wpmSeries.length);
+  const variance = wpmSeries.reduce((a,b)=>a+(b-mean)**2,0)/Math.max(1,wpmSeries.length);
+  const cons = mean>0 ? clamp((1 - Math.sqrt(variance)/mean)*100, 0, 100) : 0;
+
+  const result = { kind:"sprint", wpm, raw, acc, cons, elapsed,
+    correct:run.correct, errors:run.errors, formulas:run.formulasDone,
+    wpmSeries, errSeries, errByChar:run.errByChar, errByClass:run.errByClass,
+    perFormula:run.perFormula };
+
+  finalize(result);
+}
+
+/* ============================================================================
+ *  NAVIGATE ENGINE  — Excel grid muscle memory
+ * ========================================================================== */
+const NCOLS=12, NROWS=18;
+const gridEl = $("#grid");
+let nav = null;
+
+function genWorkbook(){
+  const set = new Set();
+  const r0 = ri(1,2), c0 = ri(1,2);
+  const h = ri(8,13), w = ri(3,6);
+  for(let r=r0;r<r0+h;r++) for(let c=c0;c<c0+w;c++) set.add(r+","+c);
+  return { set, r0, c0, h, w, rEnd:r0+h-1, cEnd:c0+w-1 };
+}
+const filled = (r,c) => nav.wb.set.has(r+","+c);
+const colName = c => String.fromCharCode(64+c);
+const refStr = (r,c) => colName(c)+r;
+
+function jump(r,c,dr,dc){
+  const inb = (rr,cc)=> rr>=1&&rr<=NROWS&&cc>=1&&cc<=NCOLS;
+  if(!inb(r+dr,c+dc)) return {r,c};
+  if(filled(r+dr,c+dc)){
+    while(inb(r+dr,c+dc) && filled(r+dr,c+dc)){ r+=dr; c+=dc; }
+    return {r,c};
+  } else {
+    r+=dr; c+=dc;
+    while(!filled(r,c) && inb(r+dr,c+dc)){ r+=dr; c+=dc; }
+    return {r,c};
+  }
+}
+
+function startNav(){
+  STATE.phase="run";
+  nav = { wb:genWorkbook(), active:{r:1,c:1}, anchor:null, sel:null,
+          tasks:[], idx:0, keys:0, tstart:0, results:[], tick:null,
+          anchorState:null };
+  buildNavTasks();
+  $("#config").classList.add("fade");
+  $("#live").classList.add("show");
+  $("#live-main-lbl").textContent = cfg.navmode==="time" ? "left" : "done";
+  nav.start = performance.now();
+  setupTask();
+  startNavTicker();
+}
+
+function buildNavTasks(){
+  // task pool honoring cfg.navtask
+  const want = cfg.navtask;
+  const types = want==="mixed" ? ["goto","jump","select","anchor"] : [want];
+  const n = cfg.navmode==="count" ? cfg.navcount : 60; // time mode: big buffer
+  for(let i=0;i<n;i++) nav.tasks.push(makeTask(pick(types)));
+}
+
+function makeTask(type){
+  const wb = nav.wb;
+  if(type==="goto"){
+    const r=ri(1,NROWS), c=ri(1,NCOLS);
+    return {type, start:{r:1,c:1}, sel:null, target:{r,c},
+      prompt:`Go to <span class="k">${refStr(r,c)}</span>`,
+      sub:"arrow keys · ctrl+arrow to leap across data",
+      par:Math.abs(r-1)+Math.abs(c-1)};
+  }
+  if(type==="jump"){
+    const c = ri(wb.c0, wb.cEnd);
+    return {type, start:{r:wb.r0, c}, sel:null, target:{r:wb.rEnd, c},
+      prompt:`Jump to the bottom of column <span class="k">${colName(c)}</span>'s data`,
+      sub:"one keystroke: ctrl + ↓",
+      par:1};
+  }
+  if(type==="select"){
+    if(chance(.5)){ // whole column of data
+      const c = ri(wb.c0, wb.cEnd);
+      const rect = {r1:wb.r0, c1:c, r2:wb.rEnd, c2:c};
+      return {type, start:{r:wb.r0, c}, sel:null, target:rect,
+        prompt:`Select all of column <span class="k">${colName(c)}</span>'s data`,
+        sub:"ctrl + shift + ↓", par:1};
+    } else { // explicit rectangle
+      const r1=wb.r0, c1=wb.c0, r2=ri(wb.r0+1,wb.rEnd), c2=ri(wb.c0, wb.cEnd);
+      const rect = {r1,c1,r2,c2};
+      return {type, start:{r:r1,c:c1}, sel:null, target:rect,
+        prompt:`Select <span class="k">${refStr(r1,c1)}:${refStr(r2,c2)}</span>`,
+        sub:"shift + arrows (ctrl+shift to leap)", par:(r2-r1)+(c2-c1)};
+    }
+  }
+  // anchor (F4 cycle)
+  const c=colL(), r=ri(2,40);
+  const modes=["none","abs","rowabs","colabs"];
+  let from=pick(modes), to;
+  do{ to=pick(modes); } while(to===from);
+  const steps=(modes.indexOf(to)-modes.indexOf(from)+4)%4;
+  return {type:"anchor", from:{c,r,mode:from}, target:{c,r,mode:to},
+    prompt:`Anchor to <span class="k">${aref(c,r,to)}</span>`,
+    sub:"press F4 to cycle the reference", par:steps};
+}
+
+function setupTask(){
+  const t = nav.tasks[nav.idx];
+  nav.keys = 0; nav.tstart = performance.now();
+  $("#nav-prompt").innerHTML = t.prompt;
+  $("#nav-sub").textContent = t.sub;
+  if(t.type==="anchor"){
+    $("#gridwrap").classList.add("hidden");
+    $("#anchor-drill").classList.remove("hidden");
+    nav.anchorState = t.from.mode;
+    renderAnchor();
+  } else {
+    $("#anchor-drill").classList.add("hidden");
+    $("#gridwrap").classList.remove("hidden");
+    nav.active = {...t.start};
+    nav.anchor = null;
+    nav.sel = t.type==="goto" ? null : null;
+    renderGrid(t);
+  }
+}
+
+function renderAnchor(){
+  const t = nav.tasks[nav.idx];
+  const s = aref(t.from.c, t.from.r, nav.anchorState)
+    .replace(/\$/g,'<span class="lock">$</span>');
+  $("#anchor-ref").innerHTML = s;
+  $("#anchor-goal").innerHTML = `target&nbsp; <b>${aref(t.target.c,t.target.r,t.target.mode)}</b>`;
+}
+
+function rectOf(a,b){ return {r1:Math.min(a.r,b.r),c1:Math.min(a.c,b.c),r2:Math.max(a.r,b.r),c2:Math.max(a.c,b.c)}; }
+
+function renderGrid(task){
+  gridEl.style.gridTemplateColumns = `36px repeat(${NCOLS}, 46px)`;
+  const sel = nav.sel;
+  const tgt = task && task.type==="goto" ? task.target : null;
+  let html = '<div class="cell hdr"></div>';
+  for(let c=1;c<=NCOLS;c++) html += `<div class="cell hdr">${colName(c)}</div>`;
+  for(let r=1;r<=NROWS;r++){
+    html += `<div class="cell rownum">${r}</div>`;
+    for(let c=1;c<=NCOLS;c++){
+      let cls="cell";
+      if(filled(r,c)) cls+=" filled";
+      if(sel && r>=sel.r1&&r<=sel.r2&&c>=sel.c1&&c<=sel.c2) cls+=" sel";
+      if(nav.active.r===r&&nav.active.c===c) cls+=" active";
+      if(tgt && tgt.r===r&&tgt.c===c) cls+=" target";
+      const val = filled(r,c) ? (((r*7+c*13)%90)+10) : "";
+      html += `<div class="${cls}">${val}</div>`;
+    }
+  }
+  gridEl.innerHTML = html;
+}
+
+function navKey(e){
+  if(e.key==="Escape"){ e.preventDefault(); toMenu(); return; }
+  if(e.key==="Tab"){ e.preventDefault(); startNav(); return; }
+  const t = nav.tasks[nav.idx];
+
+  if(t.type==="anchor"){
+    if(e.key==="F4"){
+      e.preventDefault();
+      const order=["none","abs","rowabs","colabs"];
+      nav.anchorState = order[(order.indexOf(nav.anchorState)+1)%4];
+      nav.keys++; renderAnchor(); checkTask();
+    }
+    return;
+  }
+
+  const ctrl = e.ctrlKey||e.metaKey, shift = e.shiftKey;
+  let dr=0,dc=0, isMove=false;
+  if(e.key==="ArrowUp"){ dr=-1; isMove=true; }
+  else if(e.key==="ArrowDown"){ dr=1; isMove=true; }
+  else if(e.key==="ArrowLeft"){ dc=-1; isMove=true; }
+  else if(e.key==="ArrowRight"){ dc=1; isMove=true; }
+  else if(e.key==="Home"){
+    e.preventDefault();
+    if(shift && !nav.anchor) nav.anchor={...nav.active};
+    if(!shift) nav.anchor=null;
+    nav.active = ctrl ? {r:1,c:1} : {r:nav.active.r, c:1};
+    nav.sel = shift ? rectOf(nav.anchor, nav.active) : null;
+    nav.keys++; renderGrid(t); checkTask(); return;
+  }
+  else { if(ctrl && (e.key==="r"||e.key==="d"||e.key==="R"||e.key==="D")) e.preventDefault(); return; }
+
+  if(isMove){
+    e.preventDefault();
+    if(shift && !nav.anchor) nav.anchor = {...nav.active};
+    if(!shift) nav.anchor = null;
+    let dest;
+    if(ctrl) dest = jump(nav.active.r, nav.active.c, dr, dc);
+    else dest = { r:clamp(nav.active.r+dr,1,NROWS), c:clamp(nav.active.c+dc,1,NCOLS) };
+    nav.active = dest;
+    nav.sel = shift ? rectOf(nav.anchor, nav.active) : null;
+    nav.keys++; renderGrid(t); checkTask();
+  }
+}
+
+function eqRect(a,b){ return a&&b&&a.r1===b.r1&&a.c1===b.c1&&a.r2===b.r2&&a.c2===b.c2; }
+
+function checkTask(){
+  const t = nav.tasks[nav.idx];
+  let ok=false;
+  if(t.type==="goto"||t.type==="jump") ok = nav.active.r===t.target.r && nav.active.c===t.target.c && !nav.sel;
+  else if(t.type==="select") ok = eqRect(nav.sel, {r1:t.target.r1,c1:t.target.c1,r2:t.target.r2,c2:t.target.c2});
+  else if(t.type==="anchor") ok = nav.anchorState===t.target.mode;
+  if(!ok) return;
+
+  nav.results.push({ type:t.type, par:t.par, keys:nav.keys, ms:performance.now()-nav.tstart });
+  nav.idx++;
+  if(cfg.navmode==="count" && nav.idx>=cfg.navcount){ finishNav(); return; }
+  if(nav.idx>=nav.tasks.length) nav.tasks.push(makeTask(pick(cfg.navtask==="mixed"?["goto","jump","select","anchor"]:[cfg.navtask])));
+  setupTask();
+}
+
+function startNavTicker(){
+  clearInterval(nav.tick);
+  nav.tick = setInterval(()=>{
+    const el=(performance.now()-nav.start)/1000;
+    if(cfg.navmode==="time"){
+      const left=Math.max(0,cfg.navtime-el);
+      $("#live-main").textContent=Math.ceil(left);
+      if(left<=0){ finishNav(); return; }
+    } else { $("#live-main").textContent = nav.idx+"/"+cfg.navcount; }
+    const done=nav.results.length;
+    $("#live-wpm").textContent = done? (done/(el/60)).toFixed(0) : 0;
+    const par=nav.results.reduce((a,b)=>a+b.par,0), keys=nav.results.reduce((a,b)=>a+b.keys,0);
+    $("#live-acc").textContent = keys? Math.round(clamp(par/keys,0,1)*100)+"%" : "100%";
+  },100);
+}
+
+function finishNav(){
+  clearInterval(nav.tick);
+  const elapsed=(performance.now()-nav.start)/1000;
+  const R=nav.results, n=R.length;
+  const par=R.reduce((a,b)=>a+b.par,0), keys=R.reduce((a,b)=>a+b.keys,0);
+  const eff = keys? clamp(par/keys,0,1)*100 : 100;
+  const clean = R.filter(x=>x.keys<=x.par).length;
+  const tpm = n/(elapsed/60);
+  const avg = n? elapsed/n : 0;
+  const byType={};
+  for(const x of R){ (byType[x.type]=byType[x.type]||[]).push(x.ms); }
+  finalize({ kind:"nav", tasks:n, elapsed, eff, clean, tpm, avg,
+    times:R.map(x=>x.ms), byType });
+}
+
+/* ============================================================================
+ *  RESULTS  + persistence
+ * ========================================================================== */
+function pbKey(r){
+  return r.kind==="sprint"
+    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}`
+    : `nav|${cfg.navmode}|${cfg.navmode==="time"?cfg.navtime:cfg.navcount}|${cfg.navtask}`;
+}
+function finalize(r){
+  STATE.phase="results";
+  // PB
+  const key = pbKey(r);
+  const metric = r.kind==="sprint" ? r.wpm : r.tpm;
+  const prev = PB[key]||0;
+  r.isPB = prev > 0 && metric > prev + 0.01;   // only celebrate beating a real record
+  if(metric > prev){ PB[key]=metric; store.set("pb",PB); }
+  r.prevPB = prev;
+  // history
+  HIST.push({ t:Date.now(), kind:cfg.discipline,
+    v: r.kind==="sprint"? Math.round(r.wpm) : +r.tpm.toFixed(1),
+    acc: r.kind==="sprint"? Math.round(r.acc) : Math.round(r.eff) });
+  if(HIST.length>80) HIST = HIST.slice(-80);
+  store.set("hist",HIST);
+
+  renderResults(r);
+  $("#live").classList.remove("show");
+  $("#sprint").classList.add("hidden");
+  $("#nav").classList.add("hidden");
+  $("#results").classList.remove("hidden");
+  $("#hints").innerHTML = '<span><b>tab</b>/<b>enter</b> run it back</span><span><b>esc</b> menu</span>';
+  renderMini();
+}
+
+function renderResults(r){
+  const el = $("#results");
+  if(r.kind==="sprint"){
+    // weak keys
+    const chars = Object.entries(r.errByChar).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const maxErr = chars.length? chars[0][1] : 1;
+    const cls = Object.entries(r.errByClass).sort((a,b)=>b[1]-a[1]);
+    // slowest functions
+    const grp={};
+    for(const f of r.perFormula){ const g=grp[f.name]||(grp[f.name]={chars:0,ms:0,n:0}); g.chars+=f.chars; g.ms+=f.ms; g.n++; }
+    const slow = Object.entries(grp).map(([n,g])=>[n, (g.chars/5)/(g.ms/60000), g.n])
+      .sort((a,b)=>a[1]-b[1]).slice(0,3);
+
+    el.innerHTML = `
+      <div class="res-top">
+        <div class="heroes">
+          <div class="hero"><div class="v">${Math.round(r.wpm)}</div><div class="u">wpm${r.isPB?'<span class="pb">new best</span>':''}</div></div>
+          <div class="hero sub"><div class="v">${r.acc.toFixed(1)}<small style="font-size:.5em">%</small></div><div class="u">accuracy</div></div>
+        </div>
+        <div class="graphbox">${graphSVG(r.wpmSeries, r.errSeries, r.wpm)}</div>
+      </div>
+      <div class="res-grid">
+        <div class="kv"><div class="v">${r.cons.toFixed(0)}<small>%</small></div><div class="k">consistency</div></div>
+        <div class="kv"><div class="v">${Math.round(r.raw)}</div><div class="k">raw wpm</div></div>
+        <div class="kv"><div class="v">${r.correct}<small>/${r.errors}</small></div><div class="k">chars · errors</div></div>
+        <div class="kv"><div class="v">${r.formulas}</div><div class="k">formulas</div></div>
+        <div class="kv"><div class="v">${r.elapsed.toFixed(1)}<small>s</small></div><div class="k">time</div></div>
+      </div>
+      <div class="res-cols">
+        <div class="panel">
+          <h4>weak keys</h4>
+          ${chars.length ? chars.map(([c,n])=>`
+            <div class="keyrow">
+              <span class="keycap">${prettyChar(c)}</span>
+              <span class="keybar"><i style="width:${Math.round(n/maxErr*100)}%"></i></span>
+              <span class="keymeta">${n} miss${n>1?"es":""}</span>
+            </div>`).join("")
+            : '<div class="clean">Flawless. <b>Zero misses</b> — nothing to drill here.</div>'}
+          ${cls.length? `<div class="clean" style="margin-top:10px">most-missed: <b>${cls[0][0]}</b></div>`:""}
+        </div>
+        <div class="panel">
+          <h4>by formula</h4>
+          ${slow.length>=1 ? slow.map(([n,cps])=>`
+            <div class="keyrow"><span style="color:var(--text);min-width:120px">${n}</span>
+            <span class="keymeta" style="color:var(--accent)">${(cps).toFixed(0)} wpm</span></div>`).join("")
+            : '<div class="clean">Complete more formulas to see per-type speed.</div>'}
+          <div class="clean" style="margin-top:10px">${slow.length? "slowest at top — drill these as a category" : ""}</div>
+        </div>
+      </div>`;
+  } else {
+    const maxT = Math.max(1, ...r.times);
+    el.innerHTML = `
+      <div class="res-top">
+        <div class="heroes">
+          <div class="hero"><div class="v">${r.tpm.toFixed(1)}</div><div class="u">tasks/min${r.isPB?'<span class="pb">new best</span>':''}</div></div>
+          <div class="hero sub"><div class="v">${r.eff.toFixed(0)}<small style="font-size:.5em">%</small></div><div class="u">efficiency</div></div>
+        </div>
+        <div class="graphbox">${barsSVG(r.times)}</div>
+      </div>
+      <div class="res-grid">
+        <div class="kv"><div class="v">${r.tasks}</div><div class="k">tasks done</div></div>
+        <div class="kv"><div class="v">${r.avg.toFixed(2)}<small>s</small></div><div class="k">avg / task</div></div>
+        <div class="kv"><div class="v">${r.clean}<small>/${r.tasks}</small></div><div class="k">par or better</div></div>
+        <div class="kv"><div class="v">${r.elapsed.toFixed(1)}<small>s</small></div><div class="k">time</div></div>
+      </div>
+      <div class="res-cols">
+        <div class="panel">
+          <h4>by task type</h4>
+          ${Object.entries(r.byType).map(([t,arr])=>`
+            <div class="keyrow"><span style="color:var(--text);min-width:90px;text-transform:capitalize">${t}</span>
+            <span class="keymeta" style="color:var(--accent)">${(arr.reduce((a,b)=>a+b,0)/arr.length/1000).toFixed(2)}s avg</span>
+            <span class="keymeta">${arr.length}×</span></div>`).join("")}
+        </div>
+        <div class="panel">
+          <h4>read</h4>
+          <div class="clean">Efficiency is <b>par keystrokes ÷ your keystrokes</b>. 100% means you took the optimal path every time — using <b>ctrl+arrow</b> to leap data edges and <b>ctrl+shift+arrow</b> to select runs instead of tapping cell by cell.</div>
+        </div>
+      </div>`;
+  }
+  el.innerHTML += `
+    <div class="res-actions">
+      <button class="btn primary" id="again">run it back</button>
+      <button class="btn" id="menu">menu</button>
+      <span class="kbd"><b>tab</b>/<b>enter</b> restart · <b>esc</b> menu</span>
+    </div>`;
+  $("#again").onclick = restart;
+  $("#menu").onclick = toMenu;
+}
+
+function graphSVG(series, errs, finalWpm){
+  const W=640,H=170,pl=8,pb=16,pt=10;
+  const n=series.length;
+  const maxY=Math.max(finalWpm, ...series, 10)*1.15;
+  const xx=i=> pl + (n<=1?0:(i/(n-1))*(W-pl-8));
+  const yy=v=> pt + (1 - v/maxY)*(H-pt-pb);
+  let line=""; series.forEach((v,i)=>{ line += (i?"L":"M")+xx(i).toFixed(1)+" "+yy(v).toFixed(1)+" "; });
+  let dots="";
+  errs.forEach((e,i)=>{ if(e>0) dots+=`<circle cx="${xx(i).toFixed(1)}" cy="${yy(series[i]||0).toFixed(1)}" r="3" fill="var(--err)"/>`; });
+  const avgY=yy(finalWpm);
+  return `<svg id="graph" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <line x1="${pl}" y1="${avgY}" x2="${W-8}" y2="${avgY}" stroke="var(--faint)" stroke-dasharray="3 4"/>
+    <text class="gx" x="${W-6}" y="${avgY-4}" text-anchor="end">${Math.round(finalWpm)} wpm</text>
+    <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}
+  </svg>`;
+}
+function barsSVG(times){
+  const W=640,H=170,pb=16,pt=10,gap=3;
+  const n=times.length||1;
+  const bw=Math.max(2,(W-(n-1)*gap)/n);
+  const maxT=Math.max(1,...times);
+  let bars="";
+  times.forEach((t,i)=>{
+    const h=(t/maxT)*(H-pt-pb);
+    const x=i*(bw+gap);
+    bars+=`<rect x="${x.toFixed(1)}" y="${(H-pb-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--accent)" opacity="${0.45+0.55*(1-t/maxT)}"/>`;
+  });
+  return `<svg id="graph" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}
+    <text class="gx" x="0" y="${H-3}">faster ← per-task time → slower</text></svg>`;
+}
+
+/* ============================================================================
+ *  NAV / MENU TRANSITIONS
+ * ========================================================================== */
+function restart(){
+  if(cfg.discipline==="sprint") startSprint(); else startNav();
+}
+function toMenu(){
+  if(run&&run.tick) clearInterval(run.tick);
+  if(nav&&nav.tick) clearInterval(nav.tick);
+  STATE.phase="menu";
+  $("#results").classList.add("hidden");
+  $("#live").classList.remove("show");
+  $("#config").classList.remove("fade");
+  $("#hints").innerHTML = '<span><b>type</b> to start</span><span><b>tab</b> restart</span><span><b>esc</b> menu</span>';
+  showDiscipline();
+  renderMini();
+}
+function showDiscipline(){
+  const sp = cfg.discipline==="sprint";
+  $("#sprint").classList.toggle("hidden", !sp);
+  $("#nav").classList.toggle("hidden", sp);
+  if(sp){ // show a faint preview formula at rest
+    lastTpl="";
+    run = newRun(); run.current=nextFormula(); run.next=nextFormula();
+    loadCurrent();
+    // mark all undone (preview state)
+    run.spans.forEach(s=>s.classList.remove("done","err"));
+    run.index=0; updateCaret();
+  } else {
+    nav = { wb:genWorkbook(), active:{r:1,c:1}, sel:null, anchor:null };
+    $("#anchor-drill").classList.add("hidden");
+    $("#gridwrap").classList.remove("hidden");
+    $("#nav-prompt").innerHTML = "Navigate · select · anchor";
+    $("#nav-sub").textContent = "press any arrow key (or just start) to begin";
+    renderGrid(null);
+  }
+}
+
+/* ============================================================================
+ *  GLOBAL KEY ROUTER
+ * ========================================================================== */
+let helpOpen=false;
+document.addEventListener("keydown", e=>{
+  if(helpOpen){ if(e.key==="Escape"){ toggleHelp(false);} return; }
+  if(STATE.phase==="results"){
+    if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); restart(); }
+    else if(e.key==="Escape"){ e.preventDefault(); toMenu(); }
+    return;
+  }
+  if(cfg.discipline==="sprint"){
+    if(STATE.phase==="menu"){
+      if(e.key==="Tab"){ e.preventDefault(); startSprint(); return; }
+      if(e.key==="Escape") return;
+      if(e.key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){
+        e.preventDefault(); startSprint(); typeChar(e.key);
+      }
+      return;
+    }
+    sprintKey(e);
+  } else {
+    if(STATE.phase==="menu"){
+      if(e.key==="Tab"){ e.preventDefault(); startNav(); return; }
+      if(e.key==="Escape") return;
+      if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","F4"].includes(e.key) ||
+         (e.key.length===1 && !e.ctrlKey && !e.metaKey)){
+        e.preventDefault(); startNav();
+        // feed this first key to the engine
+        navKey(e);
+      }
+      return;
+    }
+    navKey(e);
+  }
+}, true);
+
+/* ============================================================================
+ *  CONFIG UI
+ * ========================================================================== */
+const CAT = [["all","all"],["lookup","lookups"],["sum","sums"],["logic","logic"],["model","model"],["anchor","anchor"],["ref","refs"]];
+const NAVT = [["mixed","mixed"],["goto","go-to"],["jump","jump"],["select","select"],["anchor","anchor"]];
+
+function pill(label, active, on){
+  const b=document.createElement("button");
+  b.className="pill"+(active?" active":""); b.textContent=label; b.onmousedown=e=>e.preventDefault(); b.onclick=on;
+  return b;
+}
+function group(label, items){
+  const g=document.createElement("div"); g.className="grp";
+  if(label){ const l=document.createElement("span"); l.className="grp-label"; l.textContent=label; g.appendChild(l); }
+  items.forEach(i=>g.appendChild(i));
+  return g;
+}
+function divider(){ const d=document.createElement("div"); d.className="divider"; return d; }
+
+function renderConfig(){
+  const c=$("#config"); c.innerHTML="";
+  // discipline
+  c.appendChild(group("", [
+    pill("sprint", cfg.discipline==="sprint", ()=>setCfg("discipline","sprint")),
+    pill("navigate", cfg.discipline==="navigate", ()=>setCfg("discipline","navigate")),
+  ]));
+  c.appendChild(divider());
+  if(cfg.discipline==="sprint"){
+    c.appendChild(group("", CAT.map(([v,l])=>pill(l, cfg.category===v, ()=>setCfg("category",v)))));
+    c.appendChild(divider());
+    c.appendChild(group("", ["easy","std","hard"].map(v=>pill(v, cfg.difficulty===v, ()=>setCfg("difficulty",v)))));
+    c.appendChild(divider());
+    c.appendChild(group("", [
+      pill("time", cfg.mode==="time", ()=>setCfg("mode","time")),
+      pill("count", cfg.mode==="count", ()=>setCfg("mode","count")),
+    ]));
+    c.appendChild(divider());
+    if(cfg.mode==="time")
+      c.appendChild(group("", [15,30,60].map(v=>pill(String(v), cfg.time===v, ()=>setCfg("time",v)))));
+    else
+      c.appendChild(group("", [10,15,25].map(v=>pill(String(v), cfg.count===v, ()=>setCfg("count",v)))));
+  } else {
+    c.appendChild(group("", NAVT.map(([v,l])=>pill(l, cfg.navtask===v, ()=>setCfg("navtask",v)))));
+    c.appendChild(divider());
+    c.appendChild(group("", [
+      pill("time", cfg.navmode==="time", ()=>setCfg("navmode","time")),
+      pill("count", cfg.navmode==="count", ()=>setCfg("navmode","count")),
+    ]));
+    c.appendChild(divider());
+    if(cfg.navmode==="time")
+      c.appendChild(group("", [30,60].map(v=>pill(String(v), cfg.navtime===v, ()=>setCfg("navtime",v)))));
+    else
+      c.appendChild(group("", [8,12,20].map(v=>pill(String(v), cfg.navcount===v, ()=>setCfg("navcount",v)))));
+  }
+}
+function setCfg(k,v){
+  cfg[k]=v; store.set("cfg",cfg); renderConfig();
+  if(k==="discipline") showDiscipline();
+  if(cfg.discipline==="sprint" && (k==="category"||k==="difficulty")) showDiscipline();
+}
+
+/* ============================================================================
+ *  THEME / SOUND / HELP / MINI
+ * ========================================================================== */
+const THEMES=["excel","amber","slate","paper"];
+function applyTheme(){ document.body.dataset.theme=cfg.theme; $("#thm").textContent=cfg.theme; }
+$("#thm").onclick=()=>{ cfg.theme=THEMES[(THEMES.indexOf(cfg.theme)+1)%THEMES.length]; store.set("cfg",cfg); applyTheme();
+  if(STATE.phase==="menu") showDiscipline(); };
+$("#snd").onclick=()=>{ cfg.sound=!cfg.sound; store.set("cfg",cfg); $("#snd").textContent="sound "+(cfg.sound?"on":"off"); $("#snd").classList.toggle("on",cfg.sound); };
+$("#brand").onclick=toMenu;
+$("#hlp").onclick=()=>toggleHelp(true);
+$("#help").onclick=e=>{ if(e.target===$("#help")) toggleHelp(false); };
+function toggleHelp(v){ helpOpen=v; $("#help").classList.toggle("show",v); }
+
+let actx=null;
+function beep(ok){
+  if(!cfg.sound) return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type="square"; o.frequency.value= ok? 380+Math.random()*40 : 150;
+    o.connect(g); g.connect(actx.destination);
+    g.gain.setValueAtTime(0.04, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+0.045);
+    o.start(); o.stop(actx.currentTime+0.05);
+  }catch(e){}
+}
+
+function renderMini(){
+  const m=$("#mini");
+  const runs=HIST.filter(h=>h.kind===cfg.discipline).slice(-16);
+  if(!runs.length){ m.innerHTML='<span class="pbnum">no runs yet</span>'; return; }
+  const vals=runs.map(r=>r.v);
+  const W=120,H=22,max=Math.max(...vals),min=Math.min(...vals,0),rng=Math.max(1,max-min);
+  const pts=vals.map((v,i)=>`${(i/(Math.max(1,vals.length-1))*W).toFixed(1)},${(H-((v-min)/rng)*(H-3)-1).toFixed(1)}`).join(" ");
+  const key=cfg.discipline==="sprint"
+    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}`
+    : `nav|${cfg.navmode}|${cfg.navmode==="time"?cfg.navtime:cfg.navcount}|${cfg.navtask}`;
+  const pb=PB[key]!=null?(cfg.discipline==="sprint"?Math.round(PB[key]):Math.round(PB[key]*10)/10):null;
+  m.innerHTML=`<svg width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    <span class="pbnum">best <b>${pb!=null?pb:"—"}</b></span>`;
+}
+
+/* ============================================================================
+ *  BOOT
+ * ========================================================================== */
+applyTheme();
+$("#snd").textContent="sound "+(cfg.sound?"on":"off"); $("#snd").classList.toggle("on",cfg.sound);
+renderConfig();
+showDiscipline();
+renderMini();
+window.addEventListener("resize", ()=>{ if(STATE.phase!=="results" && cfg.discipline==="sprint" && run) updateCaret(); });
+</script>
+</body>
+</html>

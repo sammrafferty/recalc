@@ -285,6 +285,42 @@ footer{
 .ac-hint{ font-size:10px; color:var(--faint); padding:5px 11px; border-top:1px solid var(--faint); letter-spacing:.5px }
 .ac-hint b{ color:var(--sub) }
 
+/* ---------- build arena ---------- */
+#build{width:100%}
+#bwrap{display:flex; flex-direction:column; align-items:center; gap:14px}
+#bline{
+  font-size:25px; line-height:1.5; letter-spacing:.3px; color:var(--sub);
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+  min-height:1.5em; max-width:780px; font-variant-numeric:tabular-nums;
+}
+#bline .bc{ color:var(--sub); transition:color .05s; white-space:pre; }
+#bline .bc.done{ color:var(--text); }
+#bline .bc.err{ color:var(--err); background:color-mix(in srgb,var(--err) 22%,transparent); border-radius:3px; }
+#bline .bc.cur{ box-shadow:inset 0 -2.5px 0 var(--caret); }
+#bline .bref{
+  display:inline-flex; align-items:center; padding:1px 7px; margin:0 2px; border-radius:6px;
+  font-size:21px; letter-spacing:.3px; line-height:1.25;
+}
+#bline .bref.up{ color:var(--sub); border:1px dashed var(--faint); }
+#bline .bref.active{
+  color:var(--accent); border:1px solid var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,transparent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent);
+}
+#bline .bref.done{ color:var(--text); border:1px solid var(--accent2);
+  background:color-mix(in srgb,var(--accent) 10%,transparent); }
+#bline .bref.bad{ animation:refbad .3s; border-color:var(--err)!important; color:var(--err)!important; }
+@keyframes refbad{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 60%{transform:translateX(5px)} }
+#bhint{ font-size:12.5px; color:var(--sub); min-height:1.2em; text-align:center; letter-spacing:.2px }
+#bhint b{ color:var(--accent) }
+#bhint .mut{ color:var(--faint) }
+#bgridwrap{ display:flex; justify-content:center }
+#bgrid{ display:grid; gap:0; border:1px solid var(--line); background:var(--bg);
+  font-size:11px; font-variant-numeric:tabular-nums; border-radius:6px; overflow:hidden; }
+#bgrid .cell.lbl{ justify-content:flex-start; color:color-mix(in srgb,var(--text) 52%,transparent);
+  font-size:10px; letter-spacing:.2px }
+#bgrid .cell.yr{ justify-content:center; color:color-mix(in srgb,var(--text) 72%,transparent); font-weight:600 }
+
 .hidden{display:none !important}
 .fade{opacity:.12; pointer-events:none}
 </style>
@@ -310,8 +346,8 @@ footer{
     <!-- LIVE READOUT -->
     <div id="live">
       <div class="stat"><span class="big" id="live-main">30</span><span class="lbl" id="live-main-lbl">left</span></div>
-      <div class="stat"><b id="live-wpm">0</b><span class="lbl">wpm</span></div>
-      <div class="stat"><b id="live-acc">100%</b><span class="lbl">acc</span></div>
+      <div class="stat"><b id="live-wpm">0</b><span class="lbl" id="live-wpm-lbl">wpm</span></div>
+      <div class="stat"><b id="live-acc">100%</b><span class="lbl" id="live-acc-lbl">acc</span></div>
     </div>
 
     <!-- SPRINT -->
@@ -329,6 +365,15 @@ footer{
       <div id="anchor-drill" class="hidden">
         <div id="anchor-ref"></div>
         <div id="anchor-goal"></div>
+      </div>
+    </div>
+
+    <!-- BUILD -->
+    <div id="build" class="hidden">
+      <div id="bwrap">
+        <div id="bline"></div>
+        <div id="bhint"></div>
+        <div id="bgridwrap"><div id="bgrid"></div></div>
       </div>
     </div>
 
@@ -350,16 +395,16 @@ footer{
 <div id="help">
   <div class="card">
     <h3>recalc</h3>
-    <div class="lead">Excel reps for analysts. Two disciplines, one tight loop: type real banker formulas at speed, or drive an Excel grid with the keyboard. Open it, get reps, close it.</div>
-    <div class="row"><span>Start a run</span><span>just start typing</span></div>
-    <div class="row"><span>Complete a function</span><span>type a few letters · ↑↓ · tab</span></div>
-    <div class="row"><span>Case &amp; trailing parens</span><span>caps ignored · enter closes ) for you</span></div>
+    <div class="lead"><b>Build</b> is the main loop: type formula fragments, then select cell &amp; range references live in a mini-workbook — Excel "point mode". Type a function, point a range, F4 to anchor, type the comma to lock, repeat. <b>Sprint</b> is pure typing speed; <b>warmup</b> drills movement, selection &amp; anchoring.</div>
+    <div class="row"><span>Start a run</span><span>just start typing ( = )</span></div>
+    <div class="row"><span>Type a fragment</span><span>caps ignored · enter closes ) for you</span></div>
+    <div class="row"><span>Point to a reference</span><span>arrows · ctrl+arrow leaps data edges</span></div>
+    <div class="row"><span>Extend to a range</span><span>shift+arrow · ctrl+shift+arrow</span></div>
+    <div class="row"><span>Anchor the reference</span><span>F4 cycles  A1 → $A$1 → A$1 → $A1</span></div>
+    <div class="row"><span>Lock the reference</span><span>type the next , or ) — or tab</span></div>
     <div class="row"><span>Restart (same settings)</span><span>tab</span></div>
-    <div class="row"><span>Back to menu / abort</span><span>esc</span></div>
-    <div class="row"><span>Fix a mistake</span><span>backspace</span></div>
-    <div class="row"><span>Navigate grid</span><span>arrows · ctrl+arrows · shift</span></div>
-    <div class="row"><span>Anchor a reference</span><span>F4</span></div>
-    <div class="closehint"><b>fx</b> toggles Excel-style autocomplete · esc or click to close</div>
+    <div class="row"><span>Fix a mistake</span><span>backspace · esc to menu</span></div>
+    <div class="closehint"><b>fx</b> toggles Excel-style autocomplete in Sprint · esc or click to close</div>
   </div>
 </div>
 
@@ -381,10 +426,11 @@ const store = {
   set(k,v){ try{ localStorage.setItem("recalc."+k, JSON.stringify(v)); }catch(e){} }
 };
 const cfg = Object.assign({
-  discipline:"sprint",
+  discipline:"build",
   category:"all", difficulty:"std",
   mode:"time", time:30, count:15,
   navtask:"mixed", navmode:"count", navtime:60, navcount:12,
+  buildcat:"all", buildmode:"count", buildtime:60, buildcount:8,
   theme:"excel", sound:false, autocomplete:true
 }, store.get("cfg",{}));
 
@@ -939,6 +985,7 @@ function startSprint(){
   run.next = nextFormula();
   loadCurrent();
   $("#live-main-lbl").textContent = cfg.mode==="time" ? "left" : "done";
+  $("#live-wpm-lbl").textContent = "wpm"; $("#live-acc-lbl").textContent = "acc";
   startTicker();
 }
 
@@ -1171,6 +1218,7 @@ function startNav(){
   $("#config").classList.add("fade");
   $("#live").classList.add("show");
   $("#live-main-lbl").textContent = cfg.navmode==="time" ? "left" : "done";
+  $("#live-wpm-lbl").textContent = "t/m"; $("#live-acc-lbl").textContent = "eff";
   nav.start = performance.now();
   setupTask();
   startNavTicker();
@@ -1378,26 +1426,445 @@ function finishNav(){
 }
 
 /* ============================================================================
+ *  BUILD ENGINE  — the primary loop: type formula fragments + select live
+ *  workbook references (Excel "point mode"), anchor with F4, lock, continue.
+ * ========================================================================== */
+const BCOLS = 11, BROWS = 21;           // visible A..K × 1..21
+const ANCH = ["none","abs","rowabs","colabs"];
+const nextAnchor = m => ANCH[(ANCH.indexOf(m)+1)%4];
+const anchSteps  = (from,to) => (ANCH.indexOf(to)-ANCH.indexOf(from)+4)%4;
+const BSEGS  = ["North","South","EMEA","APAC","West","LatAm"];
+const BREGS  = ["NA","EU","APAC"];
+const BITEMS = ["Revenue","COGS","Gross Profit","OpEx","EBITDA","D&A","EBIT","Capex","Units","Price"];
+
+function jumpGeneric(has, r,c,dr,dc, R,C){     // Excel ctrl+arrow edge-leap, grid-agnostic
+  const inb=(rr,cc)=> rr>=1&&rr<=R&&cc>=1&&cc<=C;
+  if(!inb(r+dr,c+dc)) return {r,c};
+  if(has(r+dr,c+dc)){ while(inb(r+dr,c+dc) && has(r+dr,c+dc)){ r+=dr; c+=dc; } return {r,c}; }
+  r+=dr; c+=dc; while(!has(r,c) && inb(r+dr,c+dc)){ r+=dr; c+=dc; }
+  return {r,c};
+}
+
+function bRefString(rect, mode){
+  const a = aref(colName(rect.c1), rect.r1, mode);
+  if(rect.r1===rect.r2 && rect.c1===rect.c2) return a;
+  return a+":"+aref(colName(rect.c2), rect.r2, mode);
+}
+
+/* ----- a small, real-feeling mini-model the drills reference ----- */
+function genBuildWB(){
+  const cells = new Map();
+  const put=(r,c,v,kind)=>cells.set(r+","+c,{v:String(v),kind});
+  const yc1=3, ny=6, yc2=yc1+ny-1;        // year cols C..H (col A=labels, col B=spacer so ctrl-leaps land clean)
+  const yrow=2, base=pick([2022,2023,2024]);
+  put(yrow,1,"$mm","lbl");
+  for(let i=0;i<ny;i++) put(yrow, yc1+i, base+i, "yr");
+  const items=[];
+  for(let k=0;k<BITEMS.length;k++){       // line items, rows 4..13, label in col A, numbers C..H
+    const r=4+k;
+    put(r,1, BITEMS[k], "lbl");
+    for(let i=0;i<ny;i++) put(r, yc1+i, 10+((r*7+i*13)%90), "num");
+    items.push({ r, label:BITEMS[k], c1:yc1, c2:yc2 });
+  }
+  const assume=[];                        // assumptions block, rows 15..17 (label A, value B) — anchor targets
+  [["Growth %",8],["Tax %",25],["Discount %",9]].forEach((d,i)=>{
+    const r=15+i; put(r,1,d[0],"lbl"); put(r,2,d[1],"num"); assume.push({ r, c:2, label:d[0] });
+  });
+  const hr=15, segC=6, regC=7, valC=8, val2C=9;   // comps table, cols F..I, header row 15
+  put(hr,segC,"Segment","lbl"); put(hr,regC,"Region","lbl"); put(hr,valC,"Sales","lbl"); put(hr,val2C,"EBITDA","lbl");
+  const cr1=hr+1, nd=6, cr2=cr1+nd-1, segVals=[];
+  for(let r=cr1;r<=cr2;r++){
+    const seg=pick(BSEGS); segVals.push(seg);
+    put(r,segC,seg,"txt"); put(r,regC,pick(BREGS),"txt");
+    put(r,valC,100+((r*13)%400),"num"); put(r,val2C,10+((r*7)%80),"num");
+  }
+  const comps={ hr, segC, regC, valC, val2C, r1:cr1, r2:cr2, segVals };
+  return { cells, set:new Set(cells.keys()), items,
+    years:{ r:yrow, c1:yc1, c2:yc2, cols:Array.from({length:ny},(_,i)=>yc1+i) },
+    assume, comps, home:{ r:2, c:11 } };
+}
+
+/* ----- drill scaffolds: tokens of {t:'lit'|'ref'}; refs are selected, not typed ----- */
+const lit = s => ({ t:"lit", s });
+const refTok = (rect, anchor) => ({ t:"ref", rect:{...rect}, anchor, s:bRefString(rect,anchor) });
+const cellRect = (r,c) => ({ r1:r, c1:c, r2:r, c2:c });
+const rowRange = it => ({ r1:it.r, c1:it.c1, r2:it.r, c2:it.c2 });
+const colRange = (c,r1,r2) => ({ r1, c1:c, r2, c2:c });
+const other = (arr,x) => pick(arr.filter(a=>a!==x));
+
+const BGEN = [
+  { name:"sum row", cat:"sum", g:wb=>{ const it=pick(wb.items);
+      return [lit("=SUM("), refTok(rowRange(it),"none"), lit(")")]; } },
+  { name:"net of", cat:"sum", g:wb=>{ const it=pick(wb.items), c=pick(wb.years.cols);
+      return [lit("=SUM("), refTok(rowRange(it),"none"), lit(")-"), refTok(cellRect(pick(wb.items).r,c),"none")]; } },
+  { name:"margin", cat:"model", g:wb=>{ const c=pick(wb.years.cols), a=pick(wb.items), b=other(wb.items,a);
+      return [lit("="), refTok(cellRect(a.r,c),"none"), lit("/"), refTok(cellRect(b.r,c),"none")]; } },
+  { name:"growth", cat:"model", g:wb=>{ const it=pick(wb.items), cols=wb.years.cols, k=ri(1,cols.length-1);
+      return [lit("="), refTok(cellRect(it.r,cols[k]),"none"), lit("/"), refTok(cellRect(it.r,cols[k-1]),"none"), lit("-1")]; } },
+  { name:"% driver", cat:"anchor", g:wb=>{ const it=pick(wb.items), c=pick(wb.years.cols), a=pick(wb.assume);
+      return [lit("="), refTok(cellRect(it.r,c),"none"), lit("*"), refTok(cellRect(a.r,a.c),"abs")]; } },
+  { name:"two-way", cat:"anchor", g:wb=>{ const cols=wb.years.cols, a=pick(wb.items), b=pick(wb.items);
+      return [lit("="), refTok(cellRect(a.r,pick(cols)),"rowabs"), lit("*"), refTok(cellRect(b.r,pick(cols)),"colabs")]; } },
+  { name:"sumifs", cat:"sum", g:wb=>{ const cp=wb.comps, crit='"'+pick(cp.segVals)+'"';
+      return [lit("=SUMIFS("), refTok(colRange(cp.valC,cp.r1,cp.r2),"abs"), lit(","),
+              refTok(colRange(cp.segC,cp.r1,cp.r2),"abs"), lit(","), lit(crit), lit(")")]; } },
+  { name:"countifs", cat:"logic", g:wb=>{ const cp=wb.comps, crit='"'+pick(cp.segVals)+'"';
+      return [lit("=COUNTIFS("), refTok(colRange(cp.segC,cp.r1,cp.r2),"abs"), lit(","), lit(crit), lit(")")]; } },
+  { name:"sumproduct", cat:"sum", g:wb=>{ const a=pick(wb.items), b=other(wb.items,a);
+      return [lit("=SUMPRODUCT("), refTok(rowRange(a),"none"), lit(","), refTok(rowRange(b),"none"), lit(")")]; } },
+  { name:"xlookup", cat:"lookup", g:wb=>{ const cp=wb.comps, crit='"'+pick(cp.segVals)+'"';
+      return [lit("=XLOOKUP("), lit(crit), lit(","), refTok(colRange(cp.segC,cp.r1,cp.r2),"none"), lit(","),
+              refTok(colRange(cp.valC,cp.r1,cp.r2),"none"), lit(")")]; } },
+  { name:"index/match", cat:"lookup", g:wb=>{ const cp=wb.comps, crit='"'+pick(cp.segVals)+'"';
+      return [lit("=INDEX("), refTok(colRange(cp.valC,cp.r1,cp.r2),"none"), lit(",MATCH("), lit(crit), lit(","),
+              refTok(colRange(cp.segC,cp.r1,cp.r2),"none"), lit(",0))")]; } },
+];
+
+let bld = null;
+function bNewRun(){ return {
+  wb:null, drill:null, tokens:[], ti:0, ci:0,
+  active:{r:2,c:11}, anchor:null, sel:null, pointed:false, refAnchorMode:"none", refStartActive:{r:2,c:11},
+  startTime:0, fstart:0, formulasDone:0,
+  correctChars:0, errors:0, navKeys:0, refNavKeys:0, rework:0, wrongCommits:0,
+  refsTotal:0, refsClean:0, refsCommitted:0, refClean:true, parKeys:0, actKeys:0,
+  keyTimes:[], errorTimes:[], errByClass:{}, perFormula:[], lastName:"", tick:null
+}; }
+
+function startBuild(){
+  STATE.phase="run";
+  bld = bNewRun();
+  bld.wb = genBuildWB();
+  bld.startTime = performance.now();
+  bld.active = {...bld.wb.home};
+  $("#config").classList.add("fade");
+  $("#live").classList.add("show");
+  $("#live-main-lbl").textContent = cfg.buildmode==="time" ? "left" : "done";
+  $("#live-wpm-lbl").textContent = "refs"; $("#live-acc-lbl").textContent = "acc";
+  loadBuildDrill();
+  bStartTicker();
+}
+
+function makeBuildDrill(wb){
+  let pool = BGEN.filter(d=> cfg.buildcat==="all" || d.cat===cfg.buildcat);
+  if(!pool.length) pool = BGEN;
+  let d, tries=0;
+  do { d = pick(pool); tries++; } while(d.name===bld.lastName && pool.length>1 && tries<6);
+  bld.lastName = d.name;
+  const tokens = d.g(wb);
+  let from = {...wb.home};                       // par = near-optimal keystrokes (leaps + extends + F4)
+  for(const tk of tokens){ if(tk.t==="ref"){
+    let p=0;
+    if(from.r!==tk.rect.r1) p++;
+    if(from.c!==tk.rect.c1) p++;
+    if(tk.rect.r2!==tk.rect.r1) p++;
+    if(tk.rect.c2!==tk.rect.c1) p++;
+    p += anchSteps("none", tk.anchor);
+    tk.par = Math.max(1,p);
+    from = { r:tk.rect.r2, c:tk.rect.c2 };
+  }}
+  return { tokens, name:d.name, cat:d.cat, target:tokens.map(t=>t.s).join("") };
+}
+
+function loadBuildDrill(){
+  bld.drill = makeBuildDrill(bld.wb);
+  bld.tokens = bld.drill.tokens;
+  bld.ti=0; bld.ci=0; bld.fstart=performance.now();
+  bld.active = {...bld.wb.home};
+  bld.sel=null; bld.anchor=null; bld.pointed=false; bld.refAnchorMode="none";
+  bEnterTokenIfRef();
+  bRender();
+}
+
+function bEnterTokenIfRef(){
+  const tk = bld.tokens[bld.ti];
+  if(tk && tk.t==="ref"){
+    bld.sel=null; bld.anchor=null; bld.pointed=false; bld.refAnchorMode="none";
+    bld.refStartActive = {...bld.active}; bld.refClean=true; bld.refNavKeys=0;
+  }
+}
+
+function bInString(s, ci){ let q=0; for(let i=0;i<ci;i++){ if(s[i]==='"') q^=1; } return q===1; }
+
+function bAdvanceToken(){
+  bld.ti++; bld.ci=0;
+  if(bld.ti >= bld.tokens.length){ bComplete(); return true; }
+  bEnterTokenIfRef();
+  return false;
+}
+
+function bTypeChar(ch){
+  const tk = bld.tokens[bld.ti];
+  if(!tk || tk.t!=="lit") return;
+  const expected = tk.s[bld.ci];
+  if(expected===undefined) return;
+  let matched = ch===expected;
+  if(!matched && /^[A-Za-z]$/.test(ch) && /^[A-Za-z]$/.test(expected)
+     && ch.toLowerCase()===expected.toLowerCase() && !bInString(tk.s, bld.ci)) matched = true;
+  if(matched){
+    bld.ci++; bld.correctChars++; bld.keyTimes.push(performance.now()-bld.startTime);
+    beep(true);
+    if(bld.ci >= tk.s.length){ if(bAdvanceToken()) return; }
+    bRender();
+  } else {
+    bld.errors++; bld.errorTimes.push(performance.now()-bld.startTime);
+    bld.errByClass[classOf(expected)] = (bld.errByClass[classOf(expected)]||0)+1;
+    beep(false); bFlashCur();
+  }
+}
+
+function bFlashCur(){
+  const el = $("#bline .bc.cur");
+  if(el){ el.classList.add("err"); setTimeout(()=>el.classList.remove("err"), 240); }
+}
+function bFlashRef(){
+  const el = $("#bline .bref.active");
+  if(el){ el.classList.add("bad"); setTimeout(()=>el.classList.remove("bad"), 320); }
+}
+
+function bTryAutoClose(){            // Enter in literal mode: close trailing ) like Sprint
+  const tk = bld.tokens[bld.ti];
+  if(tk && tk.t==="lit"){
+    const rest = tk.s.slice(bld.ci);
+    if(rest.length && /^\)+$/.test(rest) && bld.ti===bld.tokens.length-1){
+      for(const c of rest){ bld.correctChars++; bld.keyTimes.push(performance.now()-bld.startTime); }
+      bld.ci = tk.s.length; beep(true); bAdvanceToken();
+      return;
+    }
+  }
+}
+
+function bCommitRef(how){
+  const tk = bld.tokens[bld.ti];
+  const rect = bld.sel;
+  const ok = rect && rect.r1===tk.rect.r1 && rect.c1===tk.rect.c1
+          && rect.r2===tk.rect.r2 && rect.c2===tk.rect.c2 && bld.refAnchorMode===tk.anchor;
+  if(!ok){
+    bld.wrongCommits++; bld.errors++; bld.rework++; bld.refClean=false;
+    bld.errorTimes.push(performance.now()-bld.startTime);
+    beep(false); bFlashRef(); return;
+  }
+  tk.committed = bRefString(rect, bld.refAnchorMode);
+  bld.refsTotal++; bld.refsCommitted++;
+  if(bld.refClean) bld.refsClean++;
+  bld.parKeys += tk.par; bld.actKeys += Math.max(1, bld.refNavKeys);
+  bld.keyTimes.push(performance.now()-bld.startTime);
+  beep(true);
+  bld.ti++; bld.ci=0;
+  if(bld.ti >= bld.tokens.length){ bComplete(); return; }
+  bEnterTokenIfRef();
+  if(how==="delim"){                   // the delimiter you typed both locks the ref and types itself
+    const ntk = bld.tokens[bld.ti];
+    if(ntk && ntk.t==="lit"){ bld.ci=1; bld.correctChars++;
+      if(bld.ci >= ntk.s.length){ if(bAdvanceToken()) return; } }
+  } else if(how==="enter"){
+    const ntk = bld.tokens[bld.ti];
+    if(ntk && ntk.t==="lit" && /^\)+$/.test(ntk.s) && bld.ti===bld.tokens.length-1){
+      for(const c of ntk.s){ bld.correctChars++; } bld.ci=ntk.s.length; bAdvanceToken(); return;
+    }
+  }
+  bRender();
+}
+
+function bPointKey(e){
+  const ctrl = e.ctrlKey||e.metaKey, shift = e.shiftKey;
+  if(e.key==="F4"){ e.preventDefault();
+    bld.refAnchorMode = nextAnchor(bld.refAnchorMode); bld.navKeys++; bld.refNavKeys++; bRender(); return; }
+  if(e.key==="Backspace"){ e.preventDefault();
+    if(bld.pointed){ bld.sel=null; bld.anchor=null; bld.pointed=false;
+      bld.active={...bld.refStartActive}; bld.refAnchorMode="none"; bld.rework++; bRender(); }
+    else bBackspace();
+    return; }
+  if(e.key==="Tab"){ e.preventDefault(); if(bld.pointed) bCommitRef("tab"); else startBuild(); return; }
+  if(e.key==="Enter"){ e.preventDefault(); if(bld.pointed) bCommitRef("enter"); return; }
+  let dr=0, dc=0, move=false;
+  if(e.key==="ArrowUp"){ dr=-1; move=true; }
+  else if(e.key==="ArrowDown"){ dr=1; move=true; }
+  else if(e.key==="ArrowLeft"){ dc=-1; move=true; }
+  else if(e.key==="ArrowRight"){ dc=1; move=true; }
+  if(move){ e.preventDefault();
+    if(shift && !bld.anchor) bld.anchor = {...bld.active};
+    if(!shift) bld.anchor = null;
+    const dest = ctrl ? bJump(bld.active.r, bld.active.c, dr, dc)
+                      : { r:clamp(bld.active.r+dr,1,BROWS), c:clamp(bld.active.c+dc,1,BCOLS) };
+    bld.active = dest; bld.pointed = true;
+    bld.sel = shift ? rectOf(bld.anchor, bld.active) : cellRect(dest.r, dest.c);
+    bld.navKeys++; bld.refNavKeys++; bRender(); return; }
+  if(e.key.length===1 && !ctrl && !e.altKey){
+    e.preventDefault();
+    const ntk = bld.tokens[bld.ti+1];
+    const expect = (ntk && ntk.t==="lit") ? ntk.s[0] : null;
+    if(expect && e.key===expect && bld.pointed){ bCommitRef("delim"); return; }
+    bld.errors++; bld.errorTimes.push(performance.now()-bld.startTime); beep(false); bFlashRef();
+  }
+}
+function bFilled(r,c){ return bld.wb.set.has(r+","+c); }
+function bJump(r,c,dr,dc){ return jumpGeneric(bFilled, r,c,dr,dc, BROWS, BCOLS); }
+
+function bBackspace(){
+  if(bld.ci>0){ bld.ci--; if(bld.correctChars>0) bld.correctChars--; bRender(); return; }
+  if(bld.ti>0){
+    bld.ti--;
+    const tk = bld.tokens[bld.ti];
+    if(tk.t==="lit"){ bld.ci = Math.max(0, tk.s.length-1); if(bld.correctChars>0) bld.correctChars--; }
+    else { tk.committed=null; bld.ci=0; bld.rework++; bEnterTokenIfRef(); }
+    bRender();
+  }
+}
+
+function bComplete(){
+  bld.perFormula.push({ name:bld.drill.name, cat:bld.drill.cat,
+    ms:performance.now()-bld.fstart, refs:bld.tokens.filter(t=>t.t==="ref").length });
+  bld.formulasDone++;
+  if(cfg.buildmode==="count" && bld.formulasDone>=cfg.buildcount){ bFinish(); return; }
+  loadBuildDrill();
+}
+
+function bKey(e){
+  if(e.key==="Escape"){ e.preventDefault(); toMenu(); return; }
+  const tk = bld.tokens[bld.ti];
+  if(!tk) return;
+  if(tk.t==="ref"){ bPointKey(e); return; }
+  // literal-typing mode
+  if(e.key==="Tab"){ e.preventDefault(); startBuild(); return; }
+  if(e.key==="Backspace"){ e.preventDefault(); bBackspace(); return; }
+  if(e.key==="Enter"){ e.preventDefault(); bTryAutoClose(); return; }
+  if(e.key.length!==1 || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault(); bTypeChar(e.key);
+}
+
+/* ----- build rendering ----- */
+function bRefLive(){
+  if(!bld.pointed) return "";
+  const rect = bld.sel || cellRect(bld.active.r, bld.active.c);
+  return bRefString(rect, bld.refAnchorMode);
+}
+function bRender(){
+  let html="";
+  bld.tokens.forEach((tk,i)=>{
+    if(tk.t==="lit"){
+      const isCur = i===bld.ti;
+      for(let ci=0; ci<tk.s.length; ci++){
+        const committed = (i<bld.ti) || (i===bld.ti && ci<bld.ci);
+        let cls="bc"; if(committed) cls+=" done"; if(isCur && ci===bld.ci) cls+=" cur";
+        const ch = tk.s[ci]===" " ? " " : tk.s[ci];
+        html += `<span class="${cls}">${escapeHtml(ch)}</span>`;
+      }
+    } else {
+      let cls="bref", label;
+      if(i<bld.ti){ cls+=" done"; label = tk.committed || tk.s; }
+      else if(i===bld.ti){ cls+=" active"; label = bRefLive() || "select…"; }
+      else { cls+=" up"; label = tk.s; }
+      html += `<span class="${cls}">${escapeHtml(label)}</span>`;
+    }
+  });
+  $("#bline").innerHTML = html || "&nbsp;";
+  bHint(); bGrid();
+}
+function bHint(){
+  const tk = bld.tokens[bld.ti];
+  let h = "";
+  if(tk && tk.t==="ref"){
+    const ranged = tk.rect.r1!==tk.rect.r2 || tk.rect.c1!==tk.rect.c2;
+    const tips = ranged ? "<b>ctrl+arrow</b> leaps · <b>shift</b> extends" : "<b>ctrl+arrow</b> leaps to data edges";
+    const anc  = tk.anchor!=="none" ? " · <b>F4</b> anchors" : "";
+    const ntk  = bld.tokens[bld.ti+1];
+    const lock = (ntk && ntk.t==="lit") ? "type <b>"+escapeHtml(ntk.s[0])+"</b> to lock" : "<b>enter</b> to lock";
+    h = `point — select <b>${escapeHtml(tk.s)}</b> · ${tips}${anc} · ${lock}`;
+  } else {
+    h = `type the formula <span class="mut">· dashed pills are references — select them in the grid</span>`;
+  }
+  $("#bhint").innerHTML = h;
+}
+function bGrid(){
+  const g = $("#bgrid");
+  g.style.gridTemplateColumns = `30px repeat(${BCOLS}, 44px)`;
+  const tk = bld.tokens[bld.ti], pointing = tk && tk.t==="ref";
+  const sel = bld.sel, act = bld.active;
+  let html = '<div class="cell hdr"></div>';
+  for(let c=1;c<=BCOLS;c++) html += `<div class="cell hdr">${colName(c)}</div>`;
+  for(let r=1;r<=BROWS;r++){
+    html += `<div class="cell rownum">${r}</div>`;
+    for(let c=1;c<=BCOLS;c++){
+      const o = bld.wb.cells.get(r+","+c);
+      let cls="cell";
+      if(o){ cls+=" filled"; if(o.kind==="lbl"||o.kind==="txt") cls+=" lbl"; if(o.kind==="yr") cls+=" yr"; }
+      if(pointing && sel && r>=sel.r1&&r<=sel.r2&&c>=sel.c1&&c<=sel.c2) cls+=" sel";
+      if(pointing && act.r===r && act.c===c) cls+=" active";
+      html += `<div class="${cls}">${o?escapeHtml(o.v):""}</div>`;
+    }
+  }
+  g.innerHTML = html;
+}
+
+function bStartTicker(){
+  clearInterval(bld.tick);
+  bld.tick = setInterval(()=>{
+    const el = (performance.now()-bld.startTime)/1000;
+    if(cfg.buildmode==="time"){
+      const left = Math.max(0, cfg.buildtime-el);
+      $("#live-main").textContent = Math.ceil(left);
+      if(left<=0){ bFinish(); return; }
+    } else $("#live-main").textContent = bld.formulasDone+"/"+cfg.buildcount;
+    $("#live-wpm").textContent = bld.refsCommitted;
+    const good = bld.correctChars + bld.refsClean, bad = bld.errors + bld.wrongCommits;
+    $("#live-acc").textContent = (good+bad ? Math.round(good/(good+bad)*100) : 100) + "%";
+  }, 100);
+}
+
+function bFinish(){
+  clearInterval(bld.tick);
+  const elapsed = (performance.now()-bld.startTime)/1000;
+  const rate = elapsed>0 ? bld.formulasDone/(elapsed/60) : 0;
+  const good = bld.correctChars + bld.refsClean, bad = bld.errors + bld.wrongCommits;
+  const acc = (good+bad) ? good/(good+bad)*100 : 100;
+  const refAcc = bld.refsTotal ? bld.refsClean/bld.refsTotal*100 : 100;
+  const eff = bld.actKeys ? clamp(bld.parKeys/bld.actKeys,0,1)*100 : 100;
+  const wpm = elapsed>0 ? (bld.correctChars/5)/(elapsed/60) : 0;
+
+  const secs = Math.max(1, Math.ceil(elapsed));
+  const buckets = new Array(secs).fill(0);
+  for(const t of bld.keyTimes){ buckets[Math.min(secs-1, Math.floor(t/1000))]++; }
+  const wpmSeries = buckets.map(c=>(c/5)*60);
+  const errSeries = new Array(secs).fill(0);
+  for(const t of bld.errorTimes){ errSeries[Math.min(secs-1, Math.floor(t/1000))]++; }
+  if(wpmSeries.length>3){
+    const rest = wpmSeries.slice(0,-1).filter(v=>v>0).sort((a,b)=>a-b);
+    const med = rest.length ? rest[Math.floor(rest.length/2)] : 0;
+    if(med>0 && wpmSeries[wpmSeries.length-1] < med*0.6){ wpmSeries.pop(); errSeries.pop(); }
+  }
+  const mean = wpmSeries.reduce((a,b)=>a+b,0)/Math.max(1,wpmSeries.length);
+  const variance = wpmSeries.reduce((a,b)=>a+(b-mean)**2,0)/Math.max(1,wpmSeries.length);
+  const cons = mean>0 ? clamp((1-Math.sqrt(variance)/mean)*100,0,100) : 0;
+
+  finalize({ kind:"build", rate, acc, refAcc, eff, wpm, cons, elapsed,
+    formulas:bld.formulasDone, refs:bld.refsCommitted, rework:bld.rework, wrongCommits:bld.wrongCommits,
+    correct:bld.correctChars, errors:bld.errors, perFormula:bld.perFormula,
+    errByClass:bld.errByClass, wpmSeries, errSeries });
+}
+
+/* ============================================================================
  *  RESULTS  + persistence
  * ========================================================================== */
 function pbKey(r){
-  return r.kind==="sprint"
-    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}|${cfg.autocomplete?"ac":"raw"}`
-    : `nav|${cfg.navmode}|${cfg.navmode==="time"?cfg.navtime:cfg.navcount}|${cfg.navtask}`;
+  if(r.kind==="sprint")
+    return `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}|${cfg.autocomplete?"ac":"raw"}`;
+  if(r.kind==="build")
+    return `build|${cfg.buildmode}|${cfg.buildmode==="time"?cfg.buildtime:cfg.buildcount}|${cfg.buildcat}`;
+  return `nav|${cfg.navmode}|${cfg.navmode==="time"?cfg.navtime:cfg.navcount}|${cfg.navtask}`;
 }
 function finalize(r){
   STATE.phase="results";
   // PB
   const key = pbKey(r);
-  const metric = r.kind==="sprint" ? r.wpm : r.tpm;
+  const metric = r.kind==="sprint" ? r.wpm : r.kind==="build" ? r.rate : r.tpm;
   const prev = PB[key]||0;
   r.isPB = prev > 0 && metric > prev + 0.01;   // only celebrate beating a real record
   if(metric > prev){ PB[key]=metric; store.set("pb",PB); }
   r.prevPB = prev;
   // history
   HIST.push({ t:Date.now(), kind:cfg.discipline,
-    v: r.kind==="sprint"? Math.round(r.wpm) : +r.tpm.toFixed(1),
-    acc: r.kind==="sprint"? Math.round(r.acc) : Math.round(r.eff) });
+    v: r.kind==="sprint"? Math.round(r.wpm) : r.kind==="build"? +r.rate.toFixed(1) : +r.tpm.toFixed(1),
+    acc: r.kind==="sprint"? Math.round(r.acc) : r.kind==="build"? Math.round(r.acc) : Math.round(r.eff) });
   if(HIST.length>80) HIST = HIST.slice(-80);
   store.set("hist",HIST);
 
@@ -1405,6 +1872,7 @@ function finalize(r){
   $("#live").classList.remove("show");
   $("#sprint").classList.add("hidden");
   $("#nav").classList.add("hidden");
+  $("#build").classList.add("hidden");
   $("#results").classList.remove("hidden");
   $("#hints").innerHTML = '<span><b>tab</b>/<b>enter</b> run it back</span><span><b>esc</b> menu</span>';
   renderMini();
@@ -1457,6 +1925,45 @@ function renderResults(r){
             <span class="keymeta" style="color:var(--accent)">${(cps).toFixed(0)} wpm</span></div>`).join("")
             : '<div class="clean">Complete more formulas to see per-type speed.</div>'}
           <div class="clean" style="margin-top:10px">${slow.length? "slowest at top — drill these as a category" : ""}</div>
+        </div>
+      </div>`;
+  } else if(r.kind==="build"){
+    // slowest constructs
+    const grp={};
+    for(const f of r.perFormula){ const g=grp[f.name]||(grp[f.name]={ms:0,n:0}); g.ms+=f.ms; g.n++; }
+    const slow = Object.entries(grp).map(([n,g])=>[n, g.ms/g.n/1000, g.n])
+      .sort((a,b)=>b[1]-a[1]).slice(0,4);
+    const cls = Object.entries(r.errByClass).sort((a,b)=>b[1]-a[1]);
+    el.innerHTML = `
+      <div class="res-top">
+        <div class="heroes">
+          <div class="hero"><div class="v">${r.rate.toFixed(1)}</div><div class="u">formulas/min${r.isPB?'<span class="pb">new best</span>':''}</div></div>
+          <div class="hero sub"><div class="v">${r.acc.toFixed(0)}<small style="font-size:.5em">%</small></div><div class="u">accuracy</div></div>
+        </div>
+        <div class="graphbox">${graphSVG(r.wpmSeries, r.errSeries, (r.wpmSeries.reduce((a,b)=>a+b,0)/Math.max(1,r.wpmSeries.length)))}</div>
+      </div>
+      <div class="res-grid">
+        <div class="kv"><div class="v">${r.formulas}</div><div class="k">formulas built</div></div>
+        <div class="kv"><div class="v">${r.refs}</div><div class="k">refs selected</div></div>
+        <div class="kv"><div class="v">${r.refAcc.toFixed(0)}<small>%</small></div><div class="k">ref+anchor acc</div></div>
+        <div class="kv"><div class="v">${r.eff.toFixed(0)}<small>%</small></div><div class="k">keystroke eff</div></div>
+        <div class="kv"><div class="v">${r.rework}</div><div class="k">rework</div></div>
+        <div class="kv"><div class="v">${Math.round(r.wpm)}</div><div class="k">type wpm</div></div>
+        <div class="kv"><div class="v">${r.elapsed.toFixed(1)}<small>s</small></div><div class="k">time</div></div>
+      </div>
+      <div class="res-cols">
+        <div class="panel">
+          <h4>slowest constructs</h4>
+          ${slow.length ? slow.map(([n,s,c])=>`
+            <div class="keyrow"><span style="color:var(--text);min-width:120px">${n}</span>
+            <span class="keymeta" style="color:var(--accent)">${s.toFixed(1)}s</span>
+            <span class="keymeta">${c}×</span></div>`).join("")
+            : '<div class="clean">Build more formulas to see per-construct speed.</div>'}
+          ${cls.length? `<div class="clean" style="margin-top:10px">most-fumbled key: <b>${cls[0][0]}</b></div>`:""}
+        </div>
+        <div class="panel">
+          <h4>read</h4>
+          <div class="clean"><b>Ref+anchor acc</b> is references locked correctly first try — right range <i>and</i> right <b>$</b>. <b>Keystroke eff</b> is par ÷ your keys: leap with <b>ctrl+arrow</b>, extend with <b>ctrl+shift+arrow</b> instead of tapping. <b>Rework</b> counts re-selects and wrong locks.</div>
         </div>
       </div>`;
   } else {
@@ -1535,11 +2042,14 @@ function barsSVG(times){
  *  NAV / MENU TRANSITIONS
  * ========================================================================== */
 function restart(){
-  if(cfg.discipline==="sprint") startSprint(); else startNav();
+  if(cfg.discipline==="sprint") startSprint();
+  else if(cfg.discipline==="build") startBuild();
+  else startNav();
 }
 function toMenu(){
   if(run&&run.tick) clearInterval(run.tick);
   if(nav&&nav.tick) clearInterval(nav.tick);
+  if(bld&&bld.tick) clearInterval(bld.tick);
   closeAC();
   STATE.phase="menu";
   $("#results").classList.add("hidden");
@@ -1550,21 +2060,30 @@ function toMenu(){
   renderMini();
 }
 function showDiscipline(){
-  const sp = cfg.discipline==="sprint";
-  $("#sprint").classList.toggle("hidden", !sp);
-  $("#nav").classList.toggle("hidden", sp);
-  if(sp){ // show a faint preview formula at rest
+  const d = cfg.discipline;
+  $("#sprint").classList.toggle("hidden", d!=="sprint");
+  $("#nav").classList.toggle("hidden", d!=="navigate");
+  $("#build").classList.toggle("hidden", d!=="build");
+  if(d==="sprint"){ // show a faint preview formula at rest
     lastTpl="";
     run = newRun(); run.current=nextFormula(); run.next=nextFormula();
     loadCurrent();
-    // mark all undone (preview state)
     run.spans.forEach(s=>s.classList.remove("done","err"));
     run.index=0; updateCaret();
+  } else if(d==="build"){
+    bld = bNewRun();
+    bld.wb = genBuildWB();
+    bld.active = {...bld.wb.home};
+    bld.drill = makeBuildDrill(bld.wb);
+    bld.tokens = bld.drill.tokens;
+    bld.ti=0; bld.ci=0;
+    bRender();
+    $("#bhint").innerHTML = 'type <b>=</b> to start · build the formula by typing fragments and selecting refs in the grid';
   } else {
     nav = { wb:genWorkbook(), active:{r:1,c:1}, sel:null, anchor:null };
     $("#anchor-drill").classList.add("hidden");
     $("#gridwrap").classList.remove("hidden");
-    $("#nav-prompt").innerHTML = "Navigate · select · anchor";
+    $("#nav-prompt").innerHTML = "warmup · navigate · select · anchor";
     $("#nav-sub").textContent = "press any arrow key (or just start) to begin";
     renderGrid(null);
   }
@@ -1595,6 +2114,16 @@ document.addEventListener("keydown", e=>{
       return;
     }
     sprintKey(e);
+  } else if(cfg.discipline==="build"){
+    if(STATE.phase==="menu"){
+      if(e.key==="Tab"){ e.preventDefault(); startBuild(); return; }
+      if(e.key==="Escape") return;
+      if(e.key.length===1 && !e.ctrlKey && !e.metaKey && !e.altKey){
+        e.preventDefault(); startBuild(); bTypeChar(e.key);
+      }
+      return;
+    }
+    bKey(e);
   } else {
     if(STATE.phase==="menu"){
       if(e.key==="Tab"){ e.preventDefault(); startNav(); return; }
@@ -1615,6 +2144,7 @@ document.addEventListener("keydown", e=>{
  * ========================================================================== */
 const CAT = [["all","all"],["lookup","lookups"],["sum","sums"],["logic","logic"],["model","model"],["anchor","anchor"],["ref","refs"]];
 const NAVT = [["mixed","mixed"],["goto","go-to"],["jump","jump"],["select","select"],["anchor","anchor"]];
+const BCAT = [["all","all"],["sum","sums"],["model","model"],["anchor","anchor"],["lookup","lookups"],["logic","logic"]];
 
 function pill(label, active, on){
   const b=document.createElement("button");
@@ -1631,13 +2161,26 @@ function divider(){ const d=document.createElement("div"); d.className="divider"
 
 function renderConfig(){
   const c=$("#config"); c.innerHTML="";
-  // discipline
+  // discipline — build is the primary mode; sprint and warmup are secondary
   c.appendChild(group("", [
+    pill("build", cfg.discipline==="build", ()=>setCfg("discipline","build")),
     pill("sprint", cfg.discipline==="sprint", ()=>setCfg("discipline","sprint")),
-    pill("navigate", cfg.discipline==="navigate", ()=>setCfg("discipline","navigate")),
+    pill("warmup", cfg.discipline==="navigate", ()=>setCfg("discipline","navigate")),
   ]));
   c.appendChild(divider());
-  if(cfg.discipline==="sprint"){
+  if(cfg.discipline==="build"){
+    c.appendChild(group("", BCAT.map(([v,l])=>pill(l, cfg.buildcat===v, ()=>setCfg("buildcat",v)))));
+    c.appendChild(divider());
+    c.appendChild(group("", [
+      pill("time", cfg.buildmode==="time", ()=>setCfg("buildmode","time")),
+      pill("count", cfg.buildmode==="count", ()=>setCfg("buildmode","count")),
+    ]));
+    c.appendChild(divider());
+    if(cfg.buildmode==="time")
+      c.appendChild(group("", [30,60,90].map(v=>pill(String(v), cfg.buildtime===v, ()=>setCfg("buildtime",v)))));
+    else
+      c.appendChild(group("", [5,8,12].map(v=>pill(String(v), cfg.buildcount===v, ()=>setCfg("buildcount",v)))));
+  } else if(cfg.discipline==="sprint"){
     c.appendChild(group("", CAT.map(([v,l])=>pill(l, cfg.category===v, ()=>setCfg("category",v)))));
     c.appendChild(divider());
     c.appendChild(group("", ["easy","std","hard"].map(v=>pill(v, cfg.difficulty===v, ()=>setCfg("difficulty",v)))));
@@ -1669,6 +2212,7 @@ function setCfg(k,v){
   cfg[k]=v; store.set("cfg",cfg); renderConfig();
   if(k==="discipline") showDiscipline();
   if(cfg.discipline==="sprint" && (k==="category"||k==="difficulty")) showDiscipline();
+  if(cfg.discipline==="build" && k==="buildcat") showDiscipline();
 }
 
 /* ============================================================================
@@ -1706,9 +2250,8 @@ function renderMini(){
   const vals=runs.map(r=>r.v);
   const W=120,H=22,max=Math.max(...vals),min=Math.min(...vals,0),rng=Math.max(1,max-min);
   const pts=vals.map((v,i)=>`${(i/(Math.max(1,vals.length-1))*W).toFixed(1)},${(H-((v-min)/rng)*(H-3)-1).toFixed(1)}`).join(" ");
-  const key=cfg.discipline==="sprint"
-    ? `sprint|${cfg.mode}|${cfg.mode==="time"?cfg.time:cfg.count}|${cfg.category}|${cfg.difficulty}|${cfg.autocomplete?"ac":"raw"}`
-    : `nav|${cfg.navmode}|${cfg.navmode==="time"?cfg.navtime:cfg.navcount}|${cfg.navtask}`;
+  const kind=cfg.discipline==="navigate"?"nav":cfg.discipline;  // "build"|"sprint"|"nav"
+  const key=pbKey({kind});
   const pb=PB[key]!=null?(cfg.discipline==="sprint"?Math.round(PB[key]):Math.round(PB[key]*10)/10):null;
   m.innerHTML=`<svg width="${W}" height="${H}"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/></svg>
     <span class="pbnum">best <b>${pb!=null?pb:"—"}</b></span>`;
